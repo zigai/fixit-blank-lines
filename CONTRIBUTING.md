@@ -2,7 +2,7 @@
 
 ## Environment
 
-For local development, you need Python 3.10 or later installed.
+For local development, you need Python 3.12 or later installed.
 We use [uv](https://docs.astral.sh/uv/) for project management, [Hatch](https://hatch.pypa.io/latest/) for environment management, and [just](https://github.com/casey/just) as our command runner.
 
 ## Dependencies
@@ -29,12 +29,13 @@ just check
 
 ### Linting
 
-We utilize [ruff](https://docs.astral.sh/ruff/) for linting, which analyzes code for potential issues and enforces consistent style. Refer to `pyproject.toml` for configuration details.
+We utilize [ruff](https://docs.astral.sh/ruff/) and [Fixit](https://fixit.readthedocs.io/) for linting. Ruff enforces general style and correctness checks; Fixit runs the project-specific blank-line and cuddling rules. Refer to `pyproject.toml` for configuration details.
 
 To run linting:
 
 ```sh
 just lint
+just fixit-lint
 ```
 
 ### Formatting
@@ -47,6 +48,16 @@ To run formatting:
 just format
 ```
 
+### Autofix
+
+Ruff and Fixit both support automatic rewrites for safe, mechanical changes:
+
+```sh
+just fix
+# or only Fixit rewrites
+just fixit-fix
+```
+
 ## Testing
 
 We use [pytest](https://docs.pytest.org/en/stable/) for testing. You have two options for running tests:
@@ -57,6 +68,12 @@ uv run --extra test pytest -v
 
 # Run tests across all supported Python versions
 just test
+```
+
+To run rule fixture tests declared via `Valid`/`Invalid` in the Fixit rules:
+
+```sh
+uv run fixit test fixit_blank_lines.rules
 ```
 
 ## Pre-commit Hooks
@@ -78,4 +95,4 @@ We follow the [Google docstring format](https://sphinxcontrib-napoleon.readthedo
 
 ## Release Process
 
-New versions are automatically published to [PyPI](https://pypi.org/project/flake8-blank-lines/) when a GitHub release is created.
+New versions are automatically published to [PyPI](https://pypi.org/project/fixit-blank-lines/) when a GitHub release is created.
