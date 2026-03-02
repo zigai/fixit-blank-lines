@@ -1,12 +1,12 @@
 from fixit_blank_lines import rules as rule_pack
 from fixit_blank_lines.rules import (
     BlankLineAfterControlBlock,
-    BlankLineBeforeAssignment,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
     BlockHeaderCuddleStrict,
     NoSuiteLeadingTrailingBlankLines,
 )
+from fixit_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment
 from fixit_blank_lines.rules.match_case_separation import MatchCaseSeparation
 
 
@@ -23,6 +23,12 @@ def test_match_case_rule_is_opt_in() -> None:
     assert "MatchCaseSeparation" not in rule_pack.__all__
     assert not hasattr(rule_pack, "MatchCaseSeparation")
     assert MatchCaseSeparation.__name__ == "MatchCaseSeparation"
+
+
+def test_blank_line_before_assignment_is_opt_in() -> None:
+    assert "BlankLineBeforeAssignment" not in rule_pack.__all__
+    assert not hasattr(rule_pack, "BlankLineBeforeAssignment")
+    assert BlankLineBeforeAssignment.__name__ == "BlankLineBeforeAssignment"
 
 
 def test_rule_threshold_defaults() -> None:

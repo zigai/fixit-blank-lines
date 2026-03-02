@@ -12,12 +12,12 @@ from fixit.rule import LintRule
 
 from fixit_blank_lines.rules import (
     BlankLineAfterControlBlock,
-    BlankLineBeforeAssignment,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
     BlockHeaderCuddleStrict,
     NoSuiteLeadingTrailingBlankLines,
 )
+from fixit_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment
 from fixit_blank_lines.rules.match_case_separation import MatchCaseSeparation
 
 RULE_CLASSES: tuple[type[LintRule], ...] = (
