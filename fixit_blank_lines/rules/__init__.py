@@ -3,7 +3,6 @@
 from fixit_blank_lines.rules.blank_line_after_control_block import (
     BlankLineAfterControlBlock,
 )
-from fixit_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment
 from fixit_blank_lines.rules.blank_line_before_branch_in_large_suite import (
     BlankLineBeforeBranchInLargeSuite,
 )
@@ -15,7 +14,6 @@ from fixit_blank_lines.rules.no_suite_leading_trailing_blank_lines import (
 
 __all__ = [
     "BlankLineAfterControlBlock",
-    "BlankLineBeforeAssignment",
     "BlankLineBeforeBranchInLargeSuite",
     "BlockHeaderCuddleRelaxed",
     "BlockHeaderCuddleStrict",
