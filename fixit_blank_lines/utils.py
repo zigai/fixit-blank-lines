@@ -5,6 +5,7 @@ import libcst as cst
 BRANCH_SMALL_STATEMENTS = (cst.Break, cst.Continue, cst.Raise, cst.Return)
 HEADER_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.While, cst.With)
 CONTROL_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.Try, cst.While, cst.With)
+DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
 
 
 class NameCollector(cst.CSTVisitor):
@@ -13,7 +14,7 @@ class NameCollector(cst.CSTVisitor):
     def __init__(self) -> None:
         self.names: set[str] = set()
 
-    def visit_Name(self, node: cst.Name) -> None:
+    def visit_Name(self, node: cst.Name) -> None:  # noqa: N802
         self.names.add(node.value)
 
 
@@ -46,6 +47,20 @@ def is_branch_statement(statement: cst.BaseStatement) -> bool:
         return False
 
     return isinstance(statement.body[0], BRANCH_SMALL_STATEMENTS)
+
+
+def is_docstring_statement(statement: cst.BaseStatement) -> bool:
+    if not isinstance(statement, cst.SimpleStatementLine):
+        return False
+
+    if len(statement.body) != 1:
+        return False
+
+    expression = statement.body[0]
+    if not isinstance(expression, cst.Expr):
+        return False
+
+    return isinstance(expression.value, DOCSTRING_VALUE_NODES)
 
 
 def assignment_small_statement(statement: cst.BaseStatement) -> cst.BaseSmallStatement | None:
@@ -197,6 +212,7 @@ __all__ = [
     "is_blank_line",
     "is_branch_statement",
     "is_control_block_statement",
+    "is_docstring_statement",
     "is_header_block_statement",
     "is_single_line_control_block",
     "last_assigned_name",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from libcst.metadata import PositionProvider
+from libcst.metadata import ParentNodeProvider, PositionProvider
 
 from fixit_blank_lines.utils import (
     assignment_small_statement,
@@ -12,6 +12,7 @@ from fixit_blank_lines.utils import (
     first_statement_in_block,
     has_separator,
     header_expression_nodes,
+    is_docstring_statement,
     is_header_block_statement,
     last_assigned_name,
     prepend_blank_line,
@@ -21,7 +22,7 @@ from fixit_blank_lines.utils import (
 class BaseBlankLinesRule:
     """Shared helpers for statement-sequence blank-line checks."""
 
-    METADATA_DEPENDENCIES = (PositionProvider,)
+    METADATA_DEPENDENCIES = (ParentNodeProvider, PositionProvider)
 
     _source_lines_cache: list[str]
 
@@ -50,6 +51,27 @@ class BaseBlankLinesRule:
         position = self.get_metadata(PositionProvider, node)
         return count_non_empty_lines(self._source_lines(), position.start.line, position.end.line)
 
+    def _suite_can_have_docstring(self, suite: cst.Module | cst.IndentedBlock) -> bool:
+        if isinstance(suite, cst.Module):
+            return True
+
+        parent = self.get_metadata(ParentNodeProvider, suite)
+
+        return isinstance(parent, (cst.ClassDef, cst.FunctionDef))
+
+    def _follows_suite_docstring(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+        suite_can_have_docstring: bool,
+    ) -> bool:
+        return (
+            suite_can_have_docstring
+            and index == 1
+            and len(body) > 1
+            and is_docstring_statement(body[0])
+        )
+
 
 class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
     """Shared implementation for block-header cuddling constraints."""
@@ -60,17 +82,27 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
 
     def visit_Module(self, node: cst.Module) -> None:
         self._set_source_lines(node)
-        self._check_suite_body(node.body)
+        self._check_suite_body(node.body, suite_can_have_docstring=True)
 
     def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:
-        self._check_suite_body(node.body)
+        self._check_suite_body(
+            node.body,
+            suite_can_have_docstring=self._suite_can_have_docstring(node),
+        )
 
-    def _check_suite_body(self, body: Sequence[cst.BaseStatement]) -> None:
+    def _check_suite_body(
+        self,
+        body: Sequence[cst.BaseStatement],
+        suite_can_have_docstring: bool,
+    ) -> None:
         if len(body) < 2:
             return
 
         for index, statement in enumerate(body):
             if index == 0:
+                continue
+
+            if self._follows_suite_docstring(body, index, suite_can_have_docstring):
                 continue
 
             if not is_header_block_statement(statement):

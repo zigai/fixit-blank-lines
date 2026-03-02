@@ -43,6 +43,14 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                 return total
             """
         ),
+        Valid(
+            '''
+            def f() -> int:
+                """Compute value."""
+                value = compute()
+                return value
+            '''
+        ),
     ]
     INVALID = [
         Invalid(
@@ -85,12 +93,19 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
     def visit_Module(self, node: cst.Module) -> None:
         self._set_source_lines(node)
-        self._check_suite_body(node.body)
+        self._check_suite_body(node.body, suite_can_have_docstring=True)
 
     def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:
-        self._check_suite_body(node.body)
+        self._check_suite_body(
+            node.body,
+            suite_can_have_docstring=self._suite_can_have_docstring(node),
+        )
 
-    def _check_suite_body(self, body: Sequence[cst.BaseStatement]) -> None:
+    def _check_suite_body(
+        self,
+        body: Sequence[cst.BaseStatement],
+        suite_can_have_docstring: bool,
+    ) -> None:
         if len(body) < 2:
             return
 
@@ -106,6 +121,9 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
             previous_statement = body[index - 1]
             if assignment_small_statement(previous_statement) is not None:
+                continue
+
+            if self._follows_suite_docstring(body, index, suite_can_have_docstring):
                 continue
 
             self.report(

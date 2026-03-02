@@ -37,6 +37,16 @@ class BlockHeaderCuddleStrict(BaseBlockHeaderCuddleRule, LintRule):
                 return 0
             """
         ),
+        Valid(
+            '''
+            def f(value: int) -> int:
+                """Compute value."""
+                if value > 0:
+                    return value
+
+                return 0
+            '''
+        ),
     ]
     INVALID = [
         Invalid(
