@@ -20,11 +20,9 @@ Add the rule pack to your project configuration:
 [tool.fixit]
 root = true
 enable = ["fixit_blank_lines.rules"]
-disable = [
-  "fixit_blank_lines.rules:BlockHeaderCuddleStrict",
-]
 ```
 
+This enables the default rule pack.
 
 Run linting and autofix:
 
@@ -82,7 +80,7 @@ def f(value: int) -> int:
 ```
 
 ### BlockHeaderCuddleRelaxed (BL300)
-Allows assignment-before-block cuddling only when the final prep assignment feeds the block header or first body statement.
+Allows assignment-before-block cuddling only when the immediately previous assignment feeds the block header or first body statement.
 The first statement after a suite docstring is exempt (Ruff `D202` compatibility).
 
 Before:
@@ -107,8 +105,21 @@ def f(value: int) -> int:
 ```
 
 ### BlockHeaderCuddleStrict (BL301)
-Stricter cuddle mode: only the immediately previous assignment may feed the block header.
-The first statement after a suite docstring is exempt (Ruff `D202` compatibility).
+Stricter cuddle mode. Like BL300, the first statement after a suite docstring is exempt.
+
+Opt in with `fixit_blank_lines.rules.block_header_cuddle_strict`, and disable `fixit_blank_lines.rules:BlockHeaderCuddleRelaxed` if you want BL301 instead of BL300.
+
+```toml
+[tool.fixit]
+root = true
+enable = [
+  "fixit_blank_lines.rules",
+  "fixit_blank_lines.rules.block_header_cuddle_strict",
+]
+disable = [
+  "fixit_blank_lines.rules:BlockHeaderCuddleRelaxed",
+]
+```
 
 Before:
 ```python
@@ -153,7 +164,7 @@ def f(value: int) -> int:
     return value
 ```
 
-### BlankLineBeforeAssignment (BL210, disabled by default)
+### BlankLineBeforeAssignment (BL210)
 Requires a separator before an assignment when it follows a non-assignment statement,
 except when the assignment directly follows a suite docstring.
 
@@ -174,8 +185,11 @@ def f() -> int:
     return value
 ```
 
-### MatchCaseSeparation (BL400, disabled by default)
+### MatchCaseSeparation (BL400)
 Requires a separator before the next `case` when a `case` body is larger than 2 non-empty lines.
+
+This rule is opt-in and is not included by `enable = ["fixit_blank_lines.rules"]`.
+You can enable it  with `enable = ["fixit_blank_lines.rules.match_case_separation"]`.
 
 Before:
 ```python

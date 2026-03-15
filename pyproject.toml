@@ -1,6 +1,6 @@
 [project]
 name = "fixit-blank-lines"
-version = "0.1.2"
+version = "0.1.3"
 description = "Reusable Fixit rules for blank-line and statement cuddling policies."
 authors = [{ name = "zigai", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
@@ -224,5 +224,5 @@ skip = '.git,uv.lock'
 [tool.fixit]
 root = true
 enable = ["fixit_blank_lines.rules"]
-disable = ["fixit.rules", "fixit_blank_lines.rules:BlockHeaderCuddleStrict"]
+disable = ["fixit.rules"]
 python-version = "3.12"

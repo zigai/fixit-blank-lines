@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+import libcst as cst
 from fixit import Invalid, LintRule, Valid
 
 from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 
 
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
-    """Allow cuddling only when assignment prep feeds the next block."""
+    """Allow cuddling when the previous assignment feeds the next block."""
 
     STRICT = False
     MESSAGE = (
         "BL300 Illegal cuddle before block header. "
-        "The final prep assignment must feed the block header or first body statement."
+        "The immediately previous assignment must feed the block header or first body statement."
     )
 
     VALID = [
@@ -39,6 +42,17 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
         Valid(
             """
             def f(value: int) -> int:
+                log_start()
+                prepared = value + 1
+                if prepared > 0:
+                    return prepared
+
+                return 0
+            """
+        ),
+        Valid(
+            """
+            def f(value: int) -> int:
                 prepared = value + 1
                 not_used = value + 2
 
@@ -59,6 +73,14 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
             '''
         ),
     ]
+
+    def _assignment_run(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+    ) -> Sequence[cst.BaseStatement]:
+        return body[block_index - 1 : block_index]
+
     INVALID = [
         Invalid(
             """

@@ -14,10 +14,10 @@ from fixit_blank_lines.rules import (
     BlankLineAfterControlBlock,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
-    BlockHeaderCuddleStrict,
     NoSuiteLeadingTrailingBlankLines,
 )
 from fixit_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment
+from fixit_blank_lines.rules.block_header_cuddle_strict import BlockHeaderCuddleStrict
 from fixit_blank_lines.rules.match_case_separation import MatchCaseSeparation
 
 RULE_CLASSES: tuple[type[LintRule], ...] = (
@@ -104,3 +104,21 @@ def test_rule_discovery_only_returns_concrete_rules() -> None:
     discovered = {rule.__name__ for rule in find_rules(QualifiedRule("fixit_blank_lines.rules"))}
     assert "BaseBlankLinesRule" not in discovered
     assert "BaseBlockHeaderCuddleRule" not in discovered
+    assert "BlockHeaderCuddleStrict" not in discovered
+    assert "MatchCaseSeparation" not in discovered
+
+
+def test_strict_rule_can_be_enabled_explicitly() -> None:
+    discovered = {
+        rule.__name__
+        for rule in find_rules(QualifiedRule("fixit_blank_lines.rules.block_header_cuddle_strict"))
+    }
+    assert discovered == {"BlockHeaderCuddleStrict"}
+
+
+def test_match_case_rule_can_be_enabled_explicitly() -> None:
+    discovered = {
+        rule.__name__
+        for rule in find_rules(QualifiedRule("fixit_blank_lines.rules.match_case_separation"))
+    }
+    assert discovered == {"MatchCaseSeparation"}
