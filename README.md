@@ -1,6 +1,6 @@
 # fixit-blank-lines
 
-[Fixit](https://fixit.readthedocs.io/) rules for blank-line and statement-cuddling policy checks.
+[Fixit](https://fixit.readthedocs.io/) rules for blank-line and statement-cuddling policy checks in Python.
 
 ## Installation
 
