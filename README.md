@@ -167,6 +167,7 @@ def f(value: int) -> int:
 ### BlankLineBeforeAssignment (BL210)
 Requires a separator before an assignment when it follows a non-assignment statement,
 except when the assignment directly follows a suite docstring.
+Short control-flow suites (`if`/`for`/`while`/`with`/`try`/`match`) with at most 3 statements are exempt.
 
 Before:
 ```python
