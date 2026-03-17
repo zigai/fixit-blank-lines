@@ -1,6 +1,6 @@
 [project]
 name = "fixit-blank-lines"
-version = "0.1.3"
+version = "0.1.4"
 description = "Reusable Fixit rules for blank-line and statement cuddling policies."
 authors = [{ name = "zigai", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
