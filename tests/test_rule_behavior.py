@@ -5,10 +5,9 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from fixit import Config, Invalid, QualifiedRule, Valid
-from fixit.config import find_rules
-from fixit.engine import LintRunner
-from fixit.rule import LintRule
+from rattle import Config, Invalid, LintRule, Valid
+from rattle.config import QualifiedRule, find_rules, resolve_rule_settings
+from rattle.engine import LintRunner
 
 from fixit_blank_lines.rules import (
     BlankLineAfterControlBlock,
@@ -49,10 +48,18 @@ def _as_invalid(case: str | Invalid) -> Invalid:
     return case
 
 
-def _run_rule(rule_cls: type[LintRule], source: str) -> tuple[LintRunner, list]:
+def _run_rule(
+    rule_cls: type[LintRule],
+    source: str,
+    options: dict[str, str | int | float | bool | list[str | int | float | bool]] | None = None,
+) -> tuple[LintRunner, list]:
     path = Path("fixture.py")
+    rule = rule_cls()
+    if options is not None:
+        rule.configure(options)
+
     runner = LintRunner(path, _dedent(source).encode())
-    reports = list(runner.collect_violations([rule_cls()], Config(path=path)))
+    reports = list(runner.collect_violations([rule], Config(path=path, root=Path.cwd())))
 
     return runner, reports
 
@@ -80,7 +87,7 @@ INVALID_CASES = [
 
 @pytest.mark.parametrize(("rule_cls", "case"), VALID_CASES)
 def test_valid_fixtures_produce_no_reports(rule_cls: type[LintRule], case: Valid) -> None:
-    _, reports = _run_rule(rule_cls, case.code)
+    _, reports = _run_rule(rule_cls, case.code, case.options)
     assert reports == []
 
 
@@ -89,7 +96,7 @@ def test_invalid_fixtures_produce_expected_reports(
     rule_cls: type[LintRule],
     case: Invalid,
 ) -> None:
-    runner, reports = _run_rule(rule_cls, case.code)
+    runner, reports = _run_rule(rule_cls, case.code, case.options)
 
     assert reports
 
@@ -122,3 +129,31 @@ def test_match_case_rule_can_be_enabled_explicitly() -> None:
         for rule in find_rules(QualifiedRule("fixit_blank_lines.rules.match_case_separation"))
     }
     assert discovered == {"MatchCaseSeparation"}
+
+
+def test_rule_settings_resolve_from_code_selectors() -> None:
+    path = Path("fixture.py")
+    config = Config(
+        path=path,
+        root=Path.cwd(),
+        options={
+            "BL200": {"max_suite_non_empty_lines": 4},
+            "BL210": {"short_control_flow_max_statements": 1},
+            "BL400": {"max_case_non_empty_lines": 5},
+        },
+    )
+
+    resolved = resolve_rule_settings(
+        config,
+        {
+            BlankLineBeforeBranchInLargeSuite,
+            BlankLineBeforeAssignment,
+            MatchCaseSeparation,
+        },
+    )
+
+    assert resolved == {
+        BlankLineBeforeBranchInLargeSuite: {"max_suite_non_empty_lines": 4},
+        BlankLineBeforeAssignment: {"short_control_flow_max_statements": 1},
+        MatchCaseSeparation: {"max_case_non_empty_lines": 5},
+    }

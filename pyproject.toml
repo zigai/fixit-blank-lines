@@ -1,12 +1,12 @@
 [project]
-name = "fixit-blank-lines"
+name = "rattle-blank-lines"
 version = "0.1.4"
-description = "Reusable Fixit rules for blank-line and statement cuddling policies."
+description = "Reusable Rattle rules for blank-line and statement cuddling policies."
 authors = [{ name = "zigai", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["fixit>1"]
+dependencies = ["rattle-lint"]
 
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -22,24 +22,24 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
-keywords = ["fixit", "lint", "blank-lines", "autofix"]
+keywords = ["rattle", "lint", "blank-lines", "autofix"]
 
 [project.optional-dependencies]
-test = ["pytest", "coverage", "fixit>1"]
+test = ["pytest", "coverage", "rattle-lint"]
 dev = [
     "pytest",
     "coverage",
-    "ruff",
+    "ruff==0.15.8",
     "pre-commit",
     "mypy",
     "codespell",
-    "fixit>1",
+    "rattle-lint",
 ]
 
 [project.urls]
-Repository = "https://github.com/zigai/flake8-blank-lines"
-Issues = "https://github.com/zigai/flake8-blank-lines/issues"
-Homepage = "https://github.com/zigai/flake8-blank-lines"
+Repository = "https://github.com/zigai/rattle-blank-lines"
+Issues = "https://github.com/zigai/rattle-blank-lines/issues"
+Homepage = "https://github.com/zigai/rattle-blank-lines"
 
 [build-system]
 requires = ["hatchling"]
@@ -159,7 +159,7 @@ exclude = ["build"]
 ]
 "fixit_blank_lines/rules/*.py" = [
     "N802",   # LibCST visitor hooks use framework-defined names like visit_Module.
-    "RUF012", # Fixit expects class-level VALID/INVALID fixtures on rule classes.
+    "RUF012", # Rattle expects class-level VALID/INVALID fixtures on rule classes.
 ]
 "**/tests/**/*.py" = [
     "S104",
@@ -221,8 +221,8 @@ convention = "google"
 [tool.codespell]
 skip = '.git,uv.lock'
 
-[tool.fixit]
+[tool.rattle]
 root = true
 enable = ["fixit_blank_lines.rules"]
-disable = ["fixit.rules"]
+disable = ["rattle.rules"]
 python-version = "3.12"

@@ -173,4 +173,15 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         return name in collect_names(first_statement)
 
 
-__all__: list[str] = ["BaseBlankLinesRule", "BaseBlockHeaderCuddleRule"]
+def validate_non_negative_int(value: object) -> object:
+    if value < 0:
+        raise ValueError("must be greater than or equal to 0")
+
+    return value
+
+
+__all__: list[str] = [
+    "BaseBlankLinesRule",
+    "BaseBlockHeaderCuddleRule",
+    "validate_non_negative_int",
+]

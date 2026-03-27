@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from fixit import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, Valid
 
 from fixit_blank_lines.rules.base import BaseBlankLinesRule
 from fixit_blank_lines.utils import is_blank_line
@@ -12,6 +12,7 @@ from fixit_blank_lines.utils import is_blank_line
 class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):
     """Disallow leading/trailing empty lines at suite boundaries."""
 
+    ALIASES = ("NoSuiteLeadingTrailingBlankLines",)
     LEADING_MESSAGE = "BL100 Leading blank lines in a suite are not allowed."
     TRAILING_MESSAGE = "BL101 Trailing blank lines in a suite are not allowed."
 

@@ -8,20 +8,38 @@ _require-hatch:
   @hatch --version > /dev/null || (echo "Please install hatch: uv tool install hatch" && exit 1)
 
 # check code style and potential issues
-lint:
-  ruff check
+lint: _require-uv
+  uv run ruff check .
+  uv run rattle lint .
 
 # format code
-format:
-  ruff format
+format: _require-uv
+  uv run ruff format .
 
 # fix automatically fixable linting issues
 fix: _require-uv
-  ruff check --fix
+  uv run ruff check --fix .
+  uv run rattle fix --automatic .
 
 # run tests across all supported Python versions
 test: _require-hatch
   hatch run test:test
+
+# run only the Rattle lint rules against the repository
+rattle-lint: _require-uv
+  uv run rattle lint .
+
+# apply automatic fixes from the Rattle rule pack
+rattle-fix: _require-uv
+  uv run rattle fix --automatic .
+
+# run inline VALID/INVALID rule fixtures through Rattle's built-in test runner
+rattle-test: _require-uv
+  uv run rattle test fixit_blank_lines.rules fixit_blank_lines.rules.block_header_cuddle_strict fixit_blank_lines.rules.match_case_separation
+
+# validate the repository's Rattle configuration
+rattle-validate-config: _require-uv
+  uv run rattle validate-config pyproject.toml
 
 # build the package
 build: _require-uv
@@ -34,8 +52,8 @@ sync: _require-uv
 
 # run tests with coverage and show a coverage report
 coverage:
-  coverage run -m pytest
-  coverage report
+  uv run coverage run -m pytest
+  uv run coverage report
 
 # clean build artifacts and caches
 clean:
@@ -47,11 +65,11 @@ typecheck: _require-uv
     uv run mypy
 
 # check code for common misspellings
-spell:
-    codespell
+spell: _require-uv
+    uv run codespell
 
 # run all quality checks
-check: format lint coverage typecheck spell
+check: format lint rattle-test rattle-validate-config coverage typecheck spell
 
 # list available recipes
 help:
@@ -60,3 +78,4 @@ help:
 alias fmt := format
 alias cov := coverage
 alias mypy := typecheck
+alias dev := sync

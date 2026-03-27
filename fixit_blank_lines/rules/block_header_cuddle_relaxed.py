@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from fixit import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, Valid
 
 from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 
@@ -11,6 +11,8 @@ from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
     """Allow cuddling when the previous assignment feeds the next block."""
 
+    CODE = "BL300"
+    ALIASES = ("BlockHeaderCuddleRelaxed",)
     STRICT = False
     MESSAGE = (
         "BL300 Illegal cuddle before block header. "

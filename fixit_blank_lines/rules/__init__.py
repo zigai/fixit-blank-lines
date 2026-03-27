@@ -1,4 +1,4 @@
-"""Public Fixit rules for blank-line and statement-cuddling policy."""
+"""Public Rattle rules for blank-line and statement-cuddling policy."""
 
 from fixit_blank_lines.rules.blank_line_after_control_block import BlankLineAfterControlBlock
 from fixit_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment

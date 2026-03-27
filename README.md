@@ -1,15 +1,17 @@
-# fixit-blank-lines
+# rattle-blank-lines
 
-[Fixit](https://fixit.readthedocs.io/) rules for blank-line and statement-cuddling policy checks in Python.
+[Rattle](https://github.com/Instagram/rattle) rules for blank-line and statement-cuddling policy checks in Python.
+The distribution and repository name are `rattle-blank-lines`.
+The project keeps the historical `fixit_blank_lines` package path for compatibility.
 
 ## Installation
 
 ```sh
-pip install "git+https://github.com/zigai/flake8-blank-lines.git"
+pip install "git+https://github.com/zigai/rattle-blank-lines.git"
 ```
 
 ```sh
-uv add "git+https://github.com/zigai/flake8-blank-lines.git"
+uv add "git+https://github.com/zigai/rattle-blank-lines.git"
 ```
 
 ## Quick Start
@@ -17,24 +19,37 @@ uv add "git+https://github.com/zigai/flake8-blank-lines.git"
 Add the rule pack to your project configuration:
 
 ```toml
-[tool.fixit]
+[tool.rattle]
 root = true
 enable = ["fixit_blank_lines.rules"]
 ```
 
-This enables the default rule pack.
+This enables the default rule pack. Rattle keeps its built-in `rattle.rules` enabled by default; add `disable = ["rattle.rules"]` if you want to run only this rule pack.
 
 Run linting and autofix:
 
 ```sh
-fixit lint <path>
-fixit lint --diff <path>
-fixit fix --automatic <path>
+rattle lint <path>
+rattle lint --diff <path>
+rattle fix --automatic <path>
 ```
 
-For in-file suppressions, use Fixit comments:
+For in-file suppressions, use Rattle comments:
 - `# lint-ignore: RuleName`
 - `# lint-fixme: RuleName`
+
+## Configurable Rules
+
+Rattle supports per-rule settings under `[tool.rattle.options]`. This package exposes short rule selectors via codes and class-name aliases.
+
+```toml
+[tool.rattle.options]
+BL200 = { max_suite_non_empty_lines = 2 }
+BL210 = { short_control_flow_max_statements = 3 }
+BL400 = { max_case_non_empty_lines = 2 }
+```
+
+These values match the default behavior, so you only need to set them when you want to override the defaults.
 
 ## Rules
 
@@ -58,7 +73,7 @@ def f() -> int:
 
 
 ### BlankLineBeforeBranchInLargeSuite (BL200)
-In suites larger than 2 non-empty lines, requires a blank line before `return`/`raise`/`break`/`continue`.
+In suites larger than `max_suite_non_empty_lines` non-empty lines, requires a blank line before `return`/`raise`/`break`/`continue`. The default is `2`.
 
 Before:
 ```python
@@ -107,17 +122,17 @@ def f(value: int) -> int:
 ### BlockHeaderCuddleStrict (BL301)
 Stricter cuddle mode. Like BL300, the first statement after a suite docstring is exempt.
 
-Opt in with `fixit_blank_lines.rules.block_header_cuddle_strict`, and disable `fixit_blank_lines.rules:BlockHeaderCuddleRelaxed` if you want BL301 instead of BL300.
+Opt in with `fixit_blank_lines.rules.block_header_cuddle_strict`, and disable `BL300` if you want BL301 instead of BL300.
 
 ```toml
-[tool.fixit]
+[tool.rattle]
 root = true
 enable = [
   "fixit_blank_lines.rules",
   "fixit_blank_lines.rules.block_header_cuddle_strict",
 ]
 disable = [
-  "fixit_blank_lines.rules:BlockHeaderCuddleRelaxed",
+  "BL300",
 ]
 ```
 
@@ -167,7 +182,7 @@ def f(value: int) -> int:
 ### BlankLineBeforeAssignment (BL210)
 Requires a separator before an assignment when it follows a non-assignment statement,
 except when the assignment directly follows a suite docstring.
-Short control-flow suites (`if`/`for`/`while`/`with`/`try`/`match`) with at most 3 statements are exempt.
+Short control-flow suites (`if`/`for`/`while`/`with`/`try`/`match`) with at most `short_control_flow_max_statements` statements are exempt. The default is `3`.
 
 Before:
 ```python
@@ -187,10 +202,10 @@ def f() -> int:
 ```
 
 ### MatchCaseSeparation (BL400)
-Requires a separator before the next `case` when a `case` body is larger than 2 non-empty lines.
+Requires a separator before the next `case` when a `case` body is larger than `max_case_non_empty_lines` non-empty lines. The default is `2`.
 
 This rule is opt-in and is not included by `enable = ["fixit_blank_lines.rules"]`.
-You can enable it  with `enable = ["fixit_blank_lines.rules.match_case_separation"]`.
+You can enable it with `enable = ["fixit_blank_lines.rules.match_case_separation"]`.
 
 Before:
 ```python
@@ -219,4 +234,4 @@ def f(value: int) -> int:
 
 
 ## License
-[MIT](https://github.com/zigai/flake8-blank-lines/LICENSE)
+[MIT](https://github.com/zigai/rattle-blank-lines/LICENSE)

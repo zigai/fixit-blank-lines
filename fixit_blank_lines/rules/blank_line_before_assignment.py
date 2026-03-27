@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from fixit import Invalid, LintRule, Valid
 from libcst.metadata import ParentNodeProvider
+from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule
+from fixit_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 from fixit_blank_lines.utils import (
     assignment_small_statement,
     has_separator,
@@ -18,12 +18,19 @@ from fixit_blank_lines.utils import (
 class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
     """Require separators before assignment lines after non-assignment lines."""
 
-    SHORT_CONTROL_FLOW_MAX_STATEMENTS = 3
-
+    CODE = "BL210"
+    ALIASES = ("BlankLineBeforeAssignment",)
     MESSAGE = (
         "BL210 Missing blank line before assignment statement "
         "that follows a non-assignment statement."
     )
+    SETTINGS = {
+        "short_control_flow_max_statements": RuleSetting(
+            int,
+            default=3,
+            validator=validate_non_negative_int,
+        ),
+    }
 
     VALID = [
         Valid(
@@ -75,6 +82,17 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                     update_metrics()
                     last_status_time = loop.time()
             """
+        ),
+        Valid(
+            """
+            def f() -> None:
+                if needs_status:
+                    log_status()
+                    update_metrics()
+                    refresh_cache()
+                    last_status_time = loop.time()
+            """,
+            options={"short_control_flow_max_statements": 4},
         ),
     ]
     INVALID = [
@@ -138,6 +156,23 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             """,
             expected_message=MESSAGE,
         ),
+        Invalid(
+            """
+            def f() -> None:
+                if needs_status:
+                    log_status()
+                    last_status_time = loop.time()
+            """,
+            expected_replacement="""
+            def f() -> None:
+                if needs_status:
+                    log_status()
+
+                    last_status_time = loop.time()
+            """,
+            expected_message=MESSAGE,
+            options={"short_control_flow_max_statements": 1},
+        ),
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -150,12 +185,13 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
     def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:
         parent = self.get_metadata(ParentNodeProvider, node)
+        short_control_flow_max_statements = int(self.settings["short_control_flow_max_statements"])
         self._check_suite_body(
             node.body,
             suite_can_have_docstring=self._suite_can_have_docstring(node),
             skip_short_control_flow_suite=(
                 is_control_block_statement(parent)
-                and len(node.body) <= self.SHORT_CONTROL_FLOW_MAX_STATEMENTS
+                and len(node.body) <= short_control_flow_max_statements
             ),
         )
 

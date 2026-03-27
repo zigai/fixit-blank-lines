@@ -10,7 +10,7 @@ We use [uv](https://docs.astral.sh/uv/) for project management, [Hatch](https://
 To install this package and its development dependencies, run:
 
 ```sh
-just dev
+just sync
 ```
 
 or
@@ -29,13 +29,13 @@ just check
 
 ### Linting
 
-We utilize [ruff](https://docs.astral.sh/ruff/) and [Fixit](https://fixit.readthedocs.io/) for linting. Ruff enforces general style and correctness checks; Fixit runs the project-specific blank-line and cuddling rules. Refer to `pyproject.toml` for configuration details.
+We utilize [ruff](https://docs.astral.sh/ruff/) and [Rattle](https://github.com/Instagram/rattle) for linting. Ruff enforces general style and correctness checks; Rattle runs the project-specific blank-line and cuddling rules. Refer to `pyproject.toml` for configuration details.
 
 To run linting:
 
 ```sh
 just lint
-just fixit-lint
+just rattle-lint
 ```
 
 ### Formatting
@@ -50,12 +50,12 @@ just format
 
 ### Autofix
 
-Ruff and Fixit both support automatic rewrites for safe, mechanical changes:
+Ruff and Rattle both support automatic rewrites for safe, mechanical changes:
 
 ```sh
 just fix
-# or only Fixit rewrites
-just fixit-fix
+# or only Rattle rewrites
+just rattle-fix
 ```
 
 ## Testing
@@ -70,10 +70,11 @@ uv run --extra test pytest -v
 just test
 ```
 
-To run rule fixture tests declared via `Valid`/`Invalid` in the Fixit rules:
+To run rule fixture tests declared via `Valid`/`Invalid` in the Rattle rules:
 
 ```sh
-uv run fixit test fixit_blank_lines.rules
+just rattle-test
+just rattle-validate-config
 ```
 
 ## Pre-commit Hooks
@@ -95,4 +96,4 @@ We follow the [Google docstring format](https://sphinxcontrib-napoleon.readthedo
 
 ## Release Process
 
-New versions are automatically published to [PyPI](https://pypi.org/project/fixit-blank-lines/) when a GitHub release is created.
+New versions are automatically published to [PyPI](https://pypi.org/project/rattle-blank-lines/) when a GitHub release is created.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fixit import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, Valid
 
 from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 
@@ -8,6 +8,8 @@ from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 class BlockHeaderCuddleStrict(BaseBlockHeaderCuddleRule, LintRule):
     """Strict variant: only the immediately previous assignment may cuddle."""
 
+    CODE = "BL301"
+    ALIASES = ("BlockHeaderCuddleStrict",)
     STRICT = True
     ALLOW_FIRST_BODY_USAGE = False
     MESSAGE = (

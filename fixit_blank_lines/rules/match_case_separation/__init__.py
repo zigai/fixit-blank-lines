@@ -3,20 +3,25 @@ from __future__ import annotations
 from itertools import pairwise
 
 import libcst as cst
-from fixit import Invalid, LintRule, Valid
 from libcst.metadata import PositionProvider
+from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule
+from fixit_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 
 
 class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
     """Require spacing before the next case after large case bodies."""
 
-    CASE_MAX_LINES = 2
-    MESSAGE = (
-        "BL400 Missing separator between match cases. "
-        "Case bodies larger than 2 non-empty lines should be separated from the next case."
-    )
+    CODE = "BL400"
+    ALIASES = ("MatchCaseSeparation",)
+    MESSAGE = "BL400 Missing separator between match cases after a large case body."
+    SETTINGS = {
+        "max_case_non_empty_lines": RuleSetting(
+            int,
+            default=2,
+            validator=validate_non_negative_int,
+        ),
+    }
 
     VALID = [
         Valid(
@@ -41,6 +46,19 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
                     case _:
                         return 0
             """
+        ),
+        Valid(
+            """
+            def f(value: int) -> int:
+                match value:
+                    case 1:
+                        a = 1
+                        b = 2
+                        c = 3
+                    case _:
+                        return 0
+            """,
+            options={"max_case_non_empty_lines": 3},
         ),
     ]
     INVALID = [
@@ -72,14 +90,28 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
             """,
             expected_message=MESSAGE,
         ),
+        Invalid(
+            """
+            def f(value: int) -> int:
+                match value:
+                    case 1:
+                        a = 1
+                        b = 2
+                    case _:
+                        return 0
+            """,
+            expected_message=MESSAGE,
+            options={"max_case_non_empty_lines": 1},
+        ),
     ]
 
     def visit_Match(self, node: cst.Match) -> None:
         if len(node.cases) < 2:
             return
 
+        max_case_non_empty_lines = int(self.settings["max_case_non_empty_lines"])
         for current_case, next_case in pairwise(node.cases):
-            if self._node_non_empty_line_count(current_case.body) <= self.CASE_MAX_LINES:
+            if self._node_non_empty_line_count(current_case.body) <= max_case_non_empty_lines:
                 continue
 
             current_position = self.get_metadata(PositionProvider, current_case)

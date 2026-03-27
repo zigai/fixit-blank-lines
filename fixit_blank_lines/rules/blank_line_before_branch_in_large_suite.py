@@ -3,20 +3,25 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from fixit import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule
+from fixit_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 from fixit_blank_lines.utils import has_separator, is_branch_statement, prepend_blank_line
 
 
 class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
     """Require branch statements to be visually separated in large suites."""
 
-    BRANCH_MAX_LINES = 2
-    MESSAGE = (
-        "BL200 Missing blank line before return/raise/break/continue "
-        "in a suite larger than 2 non-empty lines."
-    )
+    CODE = "BL200"
+    ALIASES = ("BlankLineBeforeBranchInLargeSuite",)
+    MESSAGE = "BL200 Missing blank line before return/raise/break/continue in a large suite."
+    SETTINGS = {
+        "max_suite_non_empty_lines": RuleSetting(
+            int,
+            default=2,
+            validator=validate_non_negative_int,
+        ),
+    }
 
     VALID = [
         Valid(
@@ -52,6 +57,15 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
                 return 1
                 value = 2
             '''
+        ),
+        Valid(
+            """
+            def f(value: int) -> int:
+                x = value + 1
+                y = x + 1
+                return y
+            """,
+            options={"max_suite_non_empty_lines": 3},
         ),
     ]
     INVALID = [
@@ -91,6 +105,21 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             """,
             expected_message=MESSAGE,
         ),
+        Invalid(
+            """
+            def f(value: int) -> int:
+                x = value + 1
+                return x
+            """,
+            expected_replacement="""
+            def f(value: int) -> int:
+                x = value + 1
+
+                return x
+            """,
+            expected_message=MESSAGE,
+            options={"max_suite_non_empty_lines": 1},
+        ),
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -111,7 +140,8 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         if len(body) < 2:
             return
 
-        if self._suite_non_empty_line_count(body) <= self.BRANCH_MAX_LINES:
+        max_suite_non_empty_lines = int(self.settings["max_suite_non_empty_lines"])
+        if self._suite_non_empty_line_count(body) <= max_suite_non_empty_lines:
             return
 
         for index, statement in enumerate(body):

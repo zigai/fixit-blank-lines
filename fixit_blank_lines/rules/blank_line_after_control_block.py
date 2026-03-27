@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from itertools import pairwise
 
 import libcst as cst
-from fixit import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, Valid
 
 from fixit_blank_lines.rules.base import BaseBlankLinesRule
 from fixit_blank_lines.utils import (
@@ -18,6 +18,8 @@ from fixit_blank_lines.utils import (
 class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
     """Require separation after multiline control-flow block statements."""
 
+    CODE = "BL350"
+    ALIASES = ("BlankLineAfterControlBlock",)
     MESSAGE = "BL350 Missing blank line after multiline control-flow block statement."
 
     VALID = [
