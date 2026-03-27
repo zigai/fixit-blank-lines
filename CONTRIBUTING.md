@@ -29,7 +29,7 @@ just check
 
 ### Linting
 
-We utilize [ruff](https://docs.astral.sh/ruff/) and [Rattle](https://github.com/Instagram/rattle) for linting. Ruff enforces general style and correctness checks; Rattle runs the project-specific blank-line and cuddling rules. Refer to `pyproject.toml` for configuration details.
+We utilize [ruff](https://docs.astral.sh/ruff/) and [Rattle](https://github.com/zigai/rattle) for linting. Ruff enforces general style and correctness checks; Rattle runs the project-specific blank-line and cuddling rules. Refer to `pyproject.toml` for configuration details.
 
 To run linting:
 

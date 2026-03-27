@@ -1,6 +1,6 @@
 # rattle-blank-lines
 
-[Rattle](https://github.com/Instagram/rattle) rules for blank-line and statement-cuddling policy checks in Python.
+[Rattle](https://github.com/zigai/rattle) rules for blank-line and statement-cuddling policy checks in Python.
 The distribution and repository name are `rattle-blank-lines`.
 The project keeps the historical `fixit_blank_lines` package path for compatibility.
 
