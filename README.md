@@ -122,6 +122,13 @@ def f(override_name: str | None) -> str:
     return display_name
 ```
 
+```python
+def f(slots: dict[str, int], key: str) -> None:
+    slots[key] -= 1
+    if slots[key] < 0:
+        raise ValueError(key)
+```
+
 ### BlockHeaderCuddleStrict (BL301)
 Stricter cuddle mode. The first statement after a suite docstring is exempt.
 
