@@ -1,12 +1,12 @@
 [project]
 name = "rattle-blank-lines"
-version = "0.2.0"
+version = "0.2.1"
 description = "Reusable Rattle rules for blank-line and statement cuddling policies."
 authors = [{ name = "zigai", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["rattle-lint>=1.0.2"]
+dependencies = ["rattle-lint>=1.0.3"]
 
 classifiers = [
     "License :: OSI Approved :: MIT License",
