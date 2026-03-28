@@ -46,16 +46,39 @@ For in-file suppressions, use Rattle comments:
 
 ## Configurable Rules
 
-Rattle supports per-rule settings under `[tool.rattle.options]`. This package exposes short rule selectors via codes and class-name aliases.
+Configure rules under `[tool.rattle.options]`.
 
 ```toml
 [tool.rattle.options]
-BL200 = { max_suite_non_empty_lines = 2 }
-BL210 = { short_control_flow_max_statements = 3 }
-BL400 = { max_case_non_empty_lines = 2 }
+
+[tool.rattle.options.BL200]
+max_suite_non_empty_lines = 2
+compact_tail_max_statements = 2
+allow_related_return_tails = true
+allow_guard_ladder_final_branch = true
+
+[tool.rattle.options.BL210]
+short_control_flow_max_statements = 3
+related_use_lookahead = 2
+allow_local_helper_capture = true
+allow_post_guard_continuation = true
+
+[tool.rattle.options.BL300]
+body_usage_lookahead = 4
+setup_run_lookback = 3
+allow_setup_before_compact_guard_ladder = true
+
+[tool.rattle.options.BL350]
+related_use_lookahead = 2
+allow_compact_guard_ladders = true
+allow_pytest_raises_clusters = true
+allow_with_immediate_inspection = true
+
+[tool.rattle.options.BL400]
+max_case_non_empty_lines = 2
 ```
 
-These values match the default behavior, so you only need to set them when you want to override the defaults.
+These are the default values.
 
 ## Rules
 
@@ -79,7 +102,7 @@ def f() -> int:
 
 
 ### BlankLineBeforeBranchInLargeSuite (BL200)
-In suites larger than `max_suite_non_empty_lines` non-empty lines, requires a blank line before `return`/`raise`/`break`/`continue`. The default is `2`.
+Requires a blank line before `return`/`raise`/`break`/`continue` in larger suites.
 
 Before:
 ```python
@@ -101,8 +124,8 @@ def f(value: int) -> int:
 ```
 
 ### BlockHeaderCuddleRelaxed (BL300)
-Allows assignment-before-block cuddling only when the immediately previous assignment feeds the block header or first body statement.
-The first statement after a suite docstring is exempt (Ruff `D202` compatibility).
+Allows cuddling before a block when the preceding setup directly feeds that block.
+The first statement after a suite docstring is exempt.
 
 Before:
 ```python
@@ -126,7 +149,7 @@ def f(value: int) -> int:
 ```
 
 ### BlockHeaderCuddleStrict (BL301)
-Stricter cuddle mode. Like BL300, the first statement after a suite docstring is exempt.
+Stricter cuddle mode. The first statement after a suite docstring is exempt.
 
 Opt in with `rattle_blank_lines.rules.block_header_cuddle_strict`, and disable `BL300` if you want BL301 instead of BL300.
 
@@ -166,8 +189,8 @@ def f(value: int) -> int:
 ```
 
 ### BlankLineAfterControlBlock (BL350)
-Requires a separator after multiline control-flow blocks.
-Consecutive simple `if` blocks without `else` stay together when they test the same subject expression, so compact dispatch ladders are preserved.
+Requires a blank line after multiline control-flow blocks.
+Some compact patterns stay together, such as guard ladders, `with pytest.raises(...)` clusters, and immediate inspection after `with`.
 
 Before:
 ```python
@@ -187,9 +210,8 @@ def f(value: int) -> int:
 ```
 
 ### BlankLineBeforeAssignment (BL210)
-Requires a separator before an assignment when it follows a non-assignment statement,
-except when the assignment directly follows a suite docstring.
-Short control-flow suites (`if`/`for`/`while`/`with`/`try`/`match`) with at most `short_control_flow_max_statements` statements are exempt. The default is `3`.
+Requires a blank line before an assignment after a non-assignment statement.
+Docstring-following assignments and some compact follow-up flows stay together.
 
 Before:
 ```python
@@ -209,7 +231,7 @@ def f() -> int:
 ```
 
 ### MatchCaseSeparation (BL400)
-Requires a separator before the next `case` when a `case` body is larger than `max_case_non_empty_lines` non-empty lines. The default is `2`.
+Requires a blank line before the next `case` after a larger case body.
 
 This rule is opt-in and is not included by `enable = ["rattle_blank_lines.rules"]`.
 You can enable it with `enable = ["rattle_blank_lines.rules.match_case_separation"]`.
