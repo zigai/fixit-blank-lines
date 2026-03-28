@@ -42,8 +42,8 @@ rattle fix <path>
 ```
 
 For in-file suppressions, use Rattle comments:
-- `# lint-ignore: RuleName`
-- `# lint-fixme: RuleName`
+- `# lint-ignore: BlankLineBeforeAssignment`
+- `# lint-fixme: BlankLineBeforeAssignment`
 
 ## Rules
 
@@ -132,17 +132,17 @@ def f(slots: dict[str, int], key: str) -> None:
 ### BlockHeaderCuddleStrict (BL301)
 Stricter cuddle mode. The first statement after a suite docstring is exempt.
 
-Opt in with `rattle_blank_lines.rules.block_header_cuddle_strict`, and disable `BL300` if you want BL301 instead of BL300.
+Opt in with `rattle_blank_lines.rules.block_header_cuddle_strict:BlockHeaderCuddleStrict`, and disable `BlockHeaderCuddleRelaxed` if you want BL301 instead of BL300.
 
 ```toml
 [tool.rattle]
 root = true
 enable = [
   "rattle_blank_lines.rules",
-  "rattle_blank_lines.rules.block_header_cuddle_strict",
+  "rattle_blank_lines.rules.block_header_cuddle_strict:BlockHeaderCuddleStrict",
 ]
 disable = [
-  "BL300",
+  "BlockHeaderCuddleRelaxed",
 ]
 ```
 
@@ -215,7 +215,7 @@ def f() -> int:
 Requires a blank line before the next `case` after a larger case body.
 
 This rule is opt-in and is not included by `enable = ["rattle_blank_lines.rules"]`.
-You can enable it with `enable = ["rattle_blank_lines.rules.match_case_separation"]`.
+You can enable it with `enable = ["rattle_blank_lines.rules.match_case_separation:MatchCaseSeparation"]`.
 
 Before:
 ```python
@@ -234,30 +234,30 @@ def f(value: int) -> int:
 ```toml
 [tool.rattle.options]
 
-[tool.rattle.options.BL200]
+[tool.rattle.options.BlankLineBeforeBranchInLargeSuite]
 max_suite_non_empty_lines = 2
 compact_tail_max_statements = 2
 allow_related_return_tails = true
 allow_guard_ladder_final_branch = true
 
-[tool.rattle.options.BL210]
+[tool.rattle.options.BlankLineBeforeAssignment]
 short_control_flow_max_statements = 3
 related_use_lookahead = 2
 allow_local_helper_capture = true
 allow_post_guard_continuation = true
 
-[tool.rattle.options.BL300]
+[tool.rattle.options.BlockHeaderCuddleRelaxed]
 body_usage_lookahead = 4
 setup_run_lookback = 3
 allow_setup_before_compact_guard_ladder = true
 
-[tool.rattle.options.BL350]
+[tool.rattle.options.BlankLineAfterControlBlock]
 related_use_lookahead = 2
 allow_compact_guard_ladders = true
 allow_pytest_raises_clusters = true
 allow_with_immediate_inspection = true
 
-[tool.rattle.options.BL400]
+[tool.rattle.options.MatchCaseSeparation]
 max_case_non_empty_lines = 2
 ```
 
