@@ -35,7 +35,7 @@ rattle-fix: _require-uv
 
 # run inline VALID/INVALID rule fixtures through Rattle's built-in test runner
 rattle-test: _require-uv
-  uv run rattle test fixit_blank_lines.rules fixit_blank_lines.rules.block_header_cuddle_strict fixit_blank_lines.rules.match_case_separation
+  uv run rattle test rattle_blank_lines.rules rattle_blank_lines.rules.block_header_cuddle_strict rattle_blank_lines.rules.match_case_separation
 
 # validate the repository's Rattle configuration
 rattle-validate-config: _require-uv

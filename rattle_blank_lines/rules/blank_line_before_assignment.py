@@ -6,8 +6,8 @@ import libcst as cst
 from libcst.metadata import ParentNodeProvider
 from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
-from fixit_blank_lines.utils import (
+from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
+from rattle_blank_lines.utils import (
     assignment_small_statement,
     has_separator,
     is_control_block_statement,

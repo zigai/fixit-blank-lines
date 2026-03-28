@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rattle import Invalid, LintRule, Valid
 
-from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
+from rattle_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 
 
 class BlockHeaderCuddleStrict(BaseBlockHeaderCuddleRule, LintRule):

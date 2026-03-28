@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import libcst as cst
 from libcst.metadata import ParentNodeProvider, PositionProvider
 
-from fixit_blank_lines.utils import (
+from rattle_blank_lines.utils import (
     assignment_small_statement,
     collect_names,
     count_non_empty_lines,

@@ -6,8 +6,8 @@ from itertools import pairwise
 import libcst as cst
 from rattle import Invalid, LintRule, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule
-from fixit_blank_lines.utils import (
+from rattle_blank_lines.rules.base import BaseBlankLinesRule
+from rattle_blank_lines.utils import (
     has_separator,
     is_control_block_statement,
     is_same_subject_simple_if_chain,

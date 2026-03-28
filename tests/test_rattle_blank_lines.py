@@ -1,7 +1,7 @@
-from fixit_blank_lines import rules as rule_pack
-from fixit_blank_lines.rules import BlankLineBeforeAssignment
-from fixit_blank_lines.rules.block_header_cuddle_strict import BlockHeaderCuddleStrict
-from fixit_blank_lines.rules.match_case_separation import MatchCaseSeparation
+from rattle_blank_lines import rules as rule_pack
+from rattle_blank_lines.rules import BlankLineBeforeAssignment
+from rattle_blank_lines.rules.block_header_cuddle_strict import BlockHeaderCuddleStrict
+from rattle_blank_lines.rules.match_case_separation import MatchCaseSeparation
 
 
 def test_default_rule_pack_exposes_only_default_rules() -> None:
@@ -19,6 +19,6 @@ def test_opt_in_rules_are_not_exported_from_default_rule_pack() -> None:
 
 def test_opt_in_rules_remain_importable_from_explicit_modules() -> None:
     assert (
-        BlockHeaderCuddleStrict.__module__ == "fixit_blank_lines.rules.block_header_cuddle_strict"
+        BlockHeaderCuddleStrict.__module__ == "rattle_blank_lines.rules.block_header_cuddle_strict"
     )
-    assert MatchCaseSeparation.__module__ == "fixit_blank_lines.rules.match_case_separation"
+    assert MatchCaseSeparation.__module__ == "rattle_blank_lines.rules.match_case_separation"

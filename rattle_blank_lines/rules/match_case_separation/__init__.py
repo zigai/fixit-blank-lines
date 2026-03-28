@@ -6,7 +6,7 @@ import libcst as cst
 from libcst.metadata import PositionProvider
 from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
+from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 
 
 class MatchCaseSeparation(BaseBlankLinesRule, LintRule):

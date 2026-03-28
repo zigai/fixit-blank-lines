@@ -5,8 +5,8 @@ from collections.abc import Sequence
 import libcst as cst
 from rattle import Invalid, LintRule, Valid
 
-from fixit_blank_lines.rules.base import BaseBlankLinesRule
-from fixit_blank_lines.utils import is_blank_line
+from rattle_blank_lines.rules.base import BaseBlankLinesRule
+from rattle_blank_lines.utils import is_blank_line
 
 
 class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):

@@ -57,10 +57,10 @@ test = "pytest {args}"
 cov = "coverage run -m pytest {args}"
 
 [tool.hatch.build.targets.wheel]
-packages = ["fixit_blank_lines"]
+packages = ["rattle_blank_lines"]
 
 [tool.coverage.run]
-source = ["fixit_blank_lines"]
+source = ["rattle_blank_lines"]
 branch = true
 
 [tool.coverage.report]
@@ -74,7 +74,7 @@ omit = ["tests/*", "tests/**"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["fixit_blank_lines"]
+files = ["rattle_blank_lines"]
 exclude = ["^tests/"]
 
 disallow_untyped_defs = true
@@ -157,7 +157,7 @@ exclude = ["build"]
     "F401", # Unused import
     "E402", # Module import not at top of file
 ]
-"fixit_blank_lines/rules/*.py" = [
+"rattle_blank_lines/rules/*.py" = [
     "N802",   # LibCST visitor hooks use framework-defined names like visit_Module.
     "RUF012", # Rattle expects class-level VALID/INVALID fixtures on rule classes.
 ]
@@ -213,7 +213,7 @@ skip-magic-trailing-comma = false
 line-ending = "lf"
 
 [tool.ruff.lint.isort]
-known-first-party = ["fixit_blank_lines", "tests"]
+known-first-party = ["rattle_blank_lines", "tests"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -223,6 +223,6 @@ skip = '.git,uv.lock'
 
 [tool.rattle]
 root = true
-enable = ["fixit_blank_lines.rules"]
+enable = ["rattle_blank_lines.rules"]
 disable = ["rattle.rules"]
 python-version = "3.12"

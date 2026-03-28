@@ -9,15 +9,15 @@ from rattle import Config, Invalid, LintRule, Valid
 from rattle.config import QualifiedRule, find_rules, resolve_rule_settings
 from rattle.engine import LintRunner
 
-from fixit_blank_lines.rules import (
+from rattle_blank_lines.rules import (
     BlankLineAfterControlBlock,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
     NoSuiteLeadingTrailingBlankLines,
 )
-from fixit_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment
-from fixit_blank_lines.rules.block_header_cuddle_strict import BlockHeaderCuddleStrict
-from fixit_blank_lines.rules.match_case_separation import MatchCaseSeparation
+from rattle_blank_lines.rules.blank_line_before_assignment import BlankLineBeforeAssignment
+from rattle_blank_lines.rules.block_header_cuddle_strict import BlockHeaderCuddleStrict
+from rattle_blank_lines.rules.match_case_separation import MatchCaseSeparation
 
 RULE_CLASSES: tuple[type[LintRule], ...] = (
     NoSuiteLeadingTrailingBlankLines,
@@ -108,7 +108,7 @@ def test_invalid_fixtures_produce_expected_reports(
 
 
 def test_rule_discovery_only_returns_concrete_rules() -> None:
-    discovered = {rule.__name__ for rule in find_rules(QualifiedRule("fixit_blank_lines.rules"))}
+    discovered = {rule.__name__ for rule in find_rules(QualifiedRule("rattle_blank_lines.rules"))}
     assert "BaseBlankLinesRule" not in discovered
     assert "BaseBlockHeaderCuddleRule" not in discovered
     assert "BlockHeaderCuddleStrict" not in discovered
@@ -118,7 +118,7 @@ def test_rule_discovery_only_returns_concrete_rules() -> None:
 def test_strict_rule_can_be_enabled_explicitly() -> None:
     discovered = {
         rule.__name__
-        for rule in find_rules(QualifiedRule("fixit_blank_lines.rules.block_header_cuddle_strict"))
+        for rule in find_rules(QualifiedRule("rattle_blank_lines.rules.block_header_cuddle_strict"))
     }
     assert discovered == {"BlockHeaderCuddleStrict"}
 
@@ -126,7 +126,7 @@ def test_strict_rule_can_be_enabled_explicitly() -> None:
 def test_match_case_rule_can_be_enabled_explicitly() -> None:
     discovered = {
         rule.__name__
-        for rule in find_rules(QualifiedRule("fixit_blank_lines.rules.match_case_separation"))
+        for rule in find_rules(QualifiedRule("rattle_blank_lines.rules.match_case_separation"))
     }
     assert discovered == {"MatchCaseSeparation"}
 

@@ -2,7 +2,7 @@
 
 [Rattle](https://github.com/zigai/rattle) rules for blank-line and statement-cuddling policy checks in Python.
 The distribution and repository name are `rattle-blank-lines`.
-The project keeps the historical `fixit_blank_lines` package path for compatibility.
+The Python package path is `rattle_blank_lines`.
 
 ## Installation
 
@@ -21,7 +21,7 @@ Add the rule pack to your project configuration:
 ```toml
 [tool.rattle]
 root = true
-enable = ["fixit_blank_lines.rules"]
+enable = ["rattle_blank_lines.rules"]
 ```
 
 This enables the default rule pack. Rattle keeps its built-in `rattle.rules` enabled by default; add `disable = ["rattle.rules"]` if you want to run only this rule pack.
@@ -122,14 +122,14 @@ def f(value: int) -> int:
 ### BlockHeaderCuddleStrict (BL301)
 Stricter cuddle mode. Like BL300, the first statement after a suite docstring is exempt.
 
-Opt in with `fixit_blank_lines.rules.block_header_cuddle_strict`, and disable `BL300` if you want BL301 instead of BL300.
+Opt in with `rattle_blank_lines.rules.block_header_cuddle_strict`, and disable `BL300` if you want BL301 instead of BL300.
 
 ```toml
 [tool.rattle]
 root = true
 enable = [
-  "fixit_blank_lines.rules",
-  "fixit_blank_lines.rules.block_header_cuddle_strict",
+  "rattle_blank_lines.rules",
+  "rattle_blank_lines.rules.block_header_cuddle_strict",
 ]
 disable = [
   "BL300",
@@ -205,8 +205,8 @@ def f() -> int:
 ### MatchCaseSeparation (BL400)
 Requires a separator before the next `case` when a `case` body is larger than `max_case_non_empty_lines` non-empty lines. The default is `2`.
 
-This rule is opt-in and is not included by `enable = ["fixit_blank_lines.rules"]`.
-You can enable it with `enable = ["fixit_blank_lines.rules.match_case_separation"]`.
+This rule is opt-in and is not included by `enable = ["rattle_blank_lines.rules"]`.
+You can enable it with `enable = ["rattle_blank_lines.rules.match_case_separation"]`.
 
 Before:
 ```python

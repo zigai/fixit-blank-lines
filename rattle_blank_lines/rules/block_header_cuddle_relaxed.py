@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import libcst as cst
 from rattle import Invalid, LintRule, Valid
 
-from fixit_blank_lines.rules.base import BaseBlockHeaderCuddleRule
+from rattle_blank_lines.rules.base import BaseBlockHeaderCuddleRule
 
 
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
