@@ -10,6 +10,7 @@ from fixit_blank_lines.rules.base import BaseBlankLinesRule
 from fixit_blank_lines.utils import (
     has_separator,
     is_control_block_statement,
+    is_same_subject_simple_if_chain,
     is_single_line_control_block,
     prepend_blank_line,
 )
@@ -48,6 +49,19 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                 return 0
             """
         ),
+        Valid(
+            """
+            def load_config(text: str, format_name: str) -> object:
+                if format_name == "json":
+                    return json.loads(text)
+                if format_name == "toml":
+                    return tomllib.loads(text)
+                if format_name == "yaml":
+                    return _load_yaml_text(text)
+
+                raise ValueError(format_name)
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -84,6 +98,28 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             """,
             expected_message=MESSAGE,
         ),
+        Invalid(
+            """
+            def f(value: int, other: int) -> int:
+                if value > 0:
+                    return value
+                if other > 0:
+                    return other
+
+                return 0
+            """,
+            expected_replacement="""
+            def f(value: int, other: int) -> int:
+                if value > 0:
+                    return value
+
+                if other > 0:
+                    return other
+
+                return 0
+            """,
+            expected_message=MESSAGE,
+        ),
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -102,6 +138,9 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                 continue
 
             if is_single_line_control_block(current_statement):
+                continue
+
+            if is_same_subject_simple_if_chain(current_statement, next_statement):
                 continue
 
             if has_separator(next_statement):

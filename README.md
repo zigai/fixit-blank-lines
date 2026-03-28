@@ -161,6 +161,7 @@ def f(value: int) -> int:
 
 ### BlankLineAfterControlBlock (BL350)
 Requires a separator after multiline control-flow blocks.
+Consecutive simple `if` blocks without `else` stay together when they test the same subject expression, so compact dispatch ladders are preserved.
 
 Before:
 ```python

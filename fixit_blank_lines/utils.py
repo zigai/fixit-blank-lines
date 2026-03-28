@@ -178,6 +178,35 @@ def is_single_line_control_block(statement: cst.BaseStatement) -> bool:
     return False
 
 
+def _simple_if_test_subject(statement: cst.BaseStatement) -> cst.BaseExpression | None:
+    if (
+        not isinstance(statement, cst.If)
+        or statement.orelse is not None
+        or not isinstance(statement.body, cst.IndentedBlock)
+        or len(statement.body.body) != 1
+        or not isinstance(statement.test, cst.Comparison)
+        or len(statement.test.comparisons) != 1
+    ):
+        return None
+
+    return statement.test.left
+
+
+def is_same_subject_simple_if_chain(
+    current_statement: cst.BaseStatement,
+    next_statement: cst.BaseStatement,
+) -> bool:
+    current_subject = _simple_if_test_subject(current_statement)
+    if current_subject is None:
+        return False
+
+    next_subject = _simple_if_test_subject(next_statement)
+    if next_subject is None:
+        return False
+
+    return current_subject.deep_equals(next_subject)
+
+
 def count_non_empty_lines(source_lines: list[str], start_line: int, end_line: int) -> int:
     if not source_lines:
         return 0
@@ -214,6 +243,7 @@ __all__ = [
     "is_control_block_statement",
     "is_docstring_statement",
     "is_header_block_statement",
+    "is_same_subject_simple_if_chain",
     "is_single_line_control_block",
     "last_assigned_name",
     "prepend_blank_line",
