@@ -231,6 +231,7 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             self.report(
                 statement,
                 message=self.MESSAGE,
+                position=self._branch_anchor_range(statement),
                 replacement=prepend_blank_line(statement),
             )
 

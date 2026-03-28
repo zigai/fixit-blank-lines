@@ -3,14 +3,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from libcst.metadata import ParentNodeProvider, PositionProvider
+from libcst.metadata import CodePosition, CodeRange, ParentNodeProvider, PositionProvider
 
 from rattle_blank_lines.utils import (
     assignment_small_statement,
+    collect_attribute_receivers,
     collect_names,
     contiguous_run_before,
     control_block_consumed_names_in_early_body,
     count_non_empty_lines,
+    expression_statement_value,
     first_statement_in_block,
     has_separator,
     header_expression_nodes,
@@ -22,6 +24,7 @@ from rattle_blank_lines.utils import (
     prepend_blank_line,
     starts_compact_guard_ladder,
     statement_reference_names,
+    statement_touches_name,
 )
 
 
@@ -43,6 +46,64 @@ class BaseBlankLinesRule:
 
     def _source_lines(self) -> list[str]:
         return getattr(self, "_source_lines_cache", [])
+
+    def _line_end_column(self, line_number: int) -> int:
+        source_lines = self._source_lines()
+        if 1 <= line_number <= len(source_lines):
+            return len(source_lines[line_number - 1])
+
+        return 0
+
+    def _first_line_range(self, node: cst.CSTNode) -> CodeRange:
+        position = self.get_metadata(PositionProvider, node)
+        return CodeRange(
+            start=position.start,
+            end=CodePosition(
+                line=position.start.line,
+                column=self._line_end_column(position.start.line),
+            ),
+        )
+
+    def _range_for_keyword(self, node: cst.CSTNode, keyword: str) -> CodeRange:
+        position = self.get_metadata(PositionProvider, node)
+        return CodeRange(
+            start=position.start,
+            end=CodePosition(
+                line=position.start.line,
+                column=position.start.column + len(keyword),
+            ),
+        )
+
+    def _branch_anchor_range(self, statement: cst.BaseStatement) -> CodeRange:
+        if isinstance(statement, cst.SimpleStatementLine) and len(statement.body) == 1:
+            branch = statement.body[0]
+            keyword = {
+                cst.Break: "break",
+                cst.Continue: "continue",
+                cst.Raise: "raise",
+                cst.Return: "return",
+            }.get(type(branch))
+            if keyword is not None:
+                return self._range_for_keyword(statement, keyword)
+
+        return self._first_line_range(statement)
+
+    def _block_header_anchor_range(self, statement: cst.BaseStatement) -> CodeRange:
+        keyword = {
+            cst.For: "for",
+            cst.If: "if",
+            cst.Match: "match",
+            cst.Try: "try",
+            cst.While: "while",
+            cst.With: "with",
+        }.get(type(statement))
+        if keyword is not None:
+            return self._range_for_keyword(statement, keyword)
+
+        return self._first_line_range(statement)
+
+    def _match_case_anchor_range(self, case: cst.MatchCase) -> CodeRange:
+        return self._range_for_keyword(case, "case")
 
     def _suite_non_empty_line_count(self, body: Sequence[cst.BaseStatement]) -> int:
         if not body:
@@ -124,6 +185,7 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             self.report(
                 statement,
                 message=self.MESSAGE,
+                position=self._block_header_anchor_range(statement),
                 replacement=prepend_blank_line(statement),
             )
 
@@ -141,12 +203,17 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         ):
             return True
 
+        if not self.STRICT and self._shares_immediate_receiver_subject(
+            body, block_index, block_statement
+        ):
+            return True
+
         candidate_run = self._assignment_run(body, block_index)
         has_assignment_run = bool(candidate_run) and all(
             assignment_small_statement(statement) is not None for statement in candidate_run
         )
         last_name = last_assigned_name(candidate_run[-1]) if has_assignment_run else None
-        if last_name is not None and self._block_uses_name(block_statement, last_name):
+        if last_name is not None and self._block_is_related_to_name(block_statement, last_name):
             return True
 
         return (not self.STRICT) and self._is_allowed_setup_run_cuddle(
@@ -234,6 +301,49 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             or self._early_body_statement_uses_name(statement, name)
         )
 
+    def _early_body_statement_touches_name(self, statement: cst.BaseStatement, name: str) -> bool:
+        if self._body_usage_lookahead() <= 0:
+            return False
+
+        for body_statement in leading_block_body_statements(
+            statement,
+            limit=self._body_usage_lookahead(),
+        ):
+            if statement_touches_name(body_statement, name):
+                return True
+
+        return False
+
+    def _block_is_related_to_name(self, statement: cst.BaseStatement, name: str) -> bool:
+        return self._block_uses_name(statement, name) or self._early_body_statement_touches_name(
+            statement,
+            name,
+        )
+
+    def _shares_immediate_receiver_subject(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+        block_statement: cst.BaseStatement,
+    ) -> bool:
+        if block_index <= 0:
+            return False
+
+        previous_expression = expression_statement_value(body[block_index - 1])
+        if previous_expression is None:
+            return False
+
+        previous_receivers = collect_attribute_receivers(previous_expression)
+        if not previous_receivers:
+            return False
+
+        return any(
+            previous_receiver.deep_equals(block_receiver)
+            for header_expression in header_expression_nodes(block_statement)
+            for previous_receiver in previous_receivers
+            for block_receiver in collect_attribute_receivers(header_expression)
+        )
+
     def _is_guard_ladder_setup_cuddle(
         self,
         body: Sequence[cst.BaseStatement],
@@ -278,7 +388,7 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         return self._is_setup_continuation_statement(
             body[block_index - 1],
             last_name,
-        ) and self._block_uses_name(block_statement, last_name)
+        ) and self._block_is_related_to_name(block_statement, last_name)
 
     def _is_setup_continuation_statement(
         self,
@@ -338,7 +448,10 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             for statement in trailing_run
         )
 
-        return trailing_run_uses_name and self._block_uses_name(block_statement, last_name)
+        return trailing_run_uses_name and self._block_is_related_to_name(
+            block_statement,
+            last_name,
+        )
 
 
 def validate_non_negative_int(value: object) -> object:

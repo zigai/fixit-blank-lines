@@ -119,7 +119,11 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
             if next_position.start.line > current_position.end.line + 1:
                 continue
 
-            self.report(next_case, message=self.MESSAGE)
+            self.report(
+                next_case,
+                message=self.MESSAGE,
+                position=self._match_case_anchor_range(next_case),
+            )
 
 
 __all__ = ["MatchCaseSeparation"]

@@ -344,6 +344,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             self.report(
                 statement,
                 message=self.MESSAGE,
+                position=self._first_line_range(statement),
                 replacement=prepend_blank_line(statement),
             )
 

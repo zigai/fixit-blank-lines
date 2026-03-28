@@ -37,6 +37,17 @@ class NestedNameCollector(cst.CSTVisitor):
         self.names.add(node.value)
 
 
+class AttributeReceiverCollector(cst.CSTVisitor):
+    """Collect immediate receivers for attribute access chains."""
+
+    def __init__(self) -> None:
+        self.receivers: list[cst.BaseExpression] = []
+
+    def visit_Attribute(self, node: cst.Attribute) -> bool:  # noqa: N802
+        self.receivers.append(node.value)
+        return False
+
+
 def collect_names(node: cst.CSTNode) -> set[str]:
     collector = NameCollector()
     node.visit(collector)
@@ -49,6 +60,13 @@ def collect_names_including_nested(node: cst.CSTNode) -> set[str]:
     node.visit(collector)
 
     return collector.names
+
+
+def collect_attribute_receivers(node: cst.CSTNode) -> list[cst.BaseExpression]:
+    collector = AttributeReceiverCollector()
+    node.visit(collector)
+
+    return collector.receivers
 
 
 def is_blank_line(line: cst.EmptyLine) -> bool:
@@ -214,6 +232,20 @@ def assignment_consumed_names(statement: cst.BaseStatement) -> set[str]:
         names.update(collect_names(assignment.value))
 
     return names
+
+
+def expression_statement_value(statement: cst.BaseStatement) -> cst.BaseExpression | None:
+    if not isinstance(statement, cst.SimpleStatementLine):
+        return None
+
+    if len(statement.body) != 1:
+        return None
+
+    expression = statement.body[0]
+    if not isinstance(expression, cst.Expr):
+        return None
+
+    return expression.value
 
 
 def header_expression_nodes(statement: cst.BaseStatement) -> list[cst.CSTNode]:
@@ -396,6 +428,10 @@ def statement_reference_names(statement: cst.BaseStatement) -> set[str]:
         return names
 
     return set()
+
+
+def statement_touches_name(statement: cst.BaseStatement, name: str) -> bool:
+    return name in assigned_names(statement) or name in statement_reference_names(statement)
 
 
 def statement_consumed_names(statement: cst.BaseStatement) -> set[str]:
@@ -815,12 +851,14 @@ __all__ = [
     "BRANCH_SMALL_STATEMENTS",
     "CONTROL_BLOCK_STATEMENTS",
     "HEADER_BLOCK_STATEMENTS",
+    "AttributeReceiverCollector",
     "NameCollector",
     "NestedNameCollector",
     "assigned_names",
     "assignment_consumed_names",
     "assignment_reference_names",
     "assignment_small_statement",
+    "collect_attribute_receivers",
     "collect_names",
     "collect_names_including_nested",
     "compact_tail_run_before",
@@ -828,6 +866,7 @@ __all__ = [
     "control_block_consumed_names_in_early_body",
     "control_block_ends_with_loop_exit",
     "count_non_empty_lines",
+    "expression_statement_value",
     "extract_target_names",
     "first_statement_in_block",
     "first_statement_in_suite",
@@ -858,6 +897,7 @@ __all__ = [
     "starts_compact_guard_ladder",
     "statement_consumed_names",
     "statement_reference_names",
+    "statement_touches_name",
     "suite_statements",
     "target_reference_names",
 ]

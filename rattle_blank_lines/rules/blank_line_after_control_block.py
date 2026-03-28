@@ -211,6 +211,7 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             self.report(
                 next_statement,
                 message=self.MESSAGE,
+                position=self._first_line_range(next_statement),
                 replacement=prepend_blank_line(next_statement),
             )
 
