@@ -1,9 +1,8 @@
 # rattle-blank-lines
 
-[![Publish](https://github.com/zigai/rattle-blank-lines/actions/workflows/publish.yml/badge.svg)](https://github.com/zigai/rattle-blank-lines/actions/workflows/publish.yml)
 [![PyPI version](https://badge.fury.io/py/rattle-blank-lines.svg)](https://badge.fury.io/py/rattle-blank-lines)
 ![Supported versions](https://img.shields.io/badge/python-3.12+-blue.svg)
-[![Downloads](https://static.pepy.tech/badge/rattle-blank-lines)](https://pepy.tech/project/rattle-blank-lines)
+[![Downloads](https://img.shields.io/pypi/dm/rattle-blank-lines.svg)](https://pypistats.org/packages/rattle-blank-lines)
 [![license](https://img.shields.io/github/license/zigai/rattle-blank-lines.svg)](https://github.com/zigai/rattle-blank-lines/blob/master/LICENSE)
 
 [Rattle](https://github.com/zigai/rattle) rules for blank-line and statement-cuddling policy checks in Python.
