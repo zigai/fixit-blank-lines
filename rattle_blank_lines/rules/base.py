@@ -8,6 +8,7 @@ from libcst.metadata import CodePosition, CodeRange, ParentNodeProvider, Positio
 from rattle_blank_lines.utils import (
     assignment_small_statement,
     collect_attribute_receivers,
+    collect_comparable_expressions,
     collect_names,
     contiguous_run_before,
     control_block_consumed_names_in_early_body,
@@ -20,11 +21,13 @@ from rattle_blank_lines.utils import (
     is_docstring_statement,
     is_header_block_statement,
     last_assigned_name,
+    last_assigned_target_expression,
     leading_block_body_statements,
     prepend_blank_line,
     starts_compact_guard_ladder,
     statement_reference_names,
     statement_touches_name,
+    statement_touches_target_expression,
 )
 
 
@@ -216,6 +219,15 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         if last_name is not None and self._block_is_related_to_name(block_statement, last_name):
             return True
 
+        last_target_expression = (
+            last_assigned_target_expression(candidate_run[-1]) if has_assignment_run else None
+        )
+        if last_target_expression is not None and self._block_is_related_to_target_expression(
+            block_statement,
+            last_target_expression,
+        ):
+            return True
+
         return (not self.STRICT) and self._is_allowed_setup_run_cuddle(
             body,
             block_index,
@@ -241,6 +253,17 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             name in collect_names(expression) for expression in header_expression_nodes(statement)
         )
 
+    def _header_uses_target_expression(
+        self,
+        statement: cst.BaseStatement,
+        target_expression: cst.BaseExpression,
+    ) -> bool:
+        return any(
+            expression.deep_equals(target_expression)
+            for header_expression in header_expression_nodes(statement)
+            for expression in collect_comparable_expressions(header_expression)
+        )
+
     def _first_body_statement_uses_name(self, statement: cst.BaseStatement, name: str) -> bool:
         if isinstance(statement, cst.If):
             return name in control_block_consumed_names_in_early_body(statement, limit=1)
@@ -250,6 +273,20 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             return False
 
         return name in collect_names(first_statement)
+
+    def _first_body_statement_uses_target_expression(
+        self,
+        statement: cst.BaseStatement,
+        target_expression: cst.BaseExpression,
+    ) -> bool:
+        first_statement = first_statement_in_block(statement)
+        if first_statement is None:
+            return False
+
+        return any(
+            expression.deep_equals(target_expression)
+            for expression in collect_comparable_expressions(first_statement)
+        )
 
     def _early_body_statement_uses_name(self, statement: cst.BaseStatement, name: str) -> bool:
         if self._body_usage_lookahead() <= 0:
@@ -266,6 +303,26 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             limit=self._body_usage_lookahead(),
         ):
             if name in statement_reference_names(body_statement):
+                return True
+
+        return False
+
+    def _early_body_statement_uses_target_expression(
+        self,
+        statement: cst.BaseStatement,
+        target_expression: cst.BaseExpression,
+    ) -> bool:
+        if self._body_usage_lookahead() <= 0:
+            return False
+
+        for body_statement in leading_block_body_statements(
+            statement,
+            limit=self._body_usage_lookahead(),
+        ):
+            if any(
+                expression.deep_equals(target_expression)
+                for expression in collect_comparable_expressions(body_statement)
+            ):
                 return True
 
         return False
@@ -301,6 +358,23 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             or self._early_body_statement_uses_name(statement, name)
         )
 
+    def _block_uses_target_expression(
+        self,
+        statement: cst.BaseStatement,
+        target_expression: cst.BaseExpression,
+    ) -> bool:
+        return (
+            self._header_uses_target_expression(statement, target_expression)
+            or (
+                self.ALLOW_FIRST_BODY_USAGE
+                and self._first_body_statement_uses_target_expression(
+                    statement,
+                    target_expression,
+                )
+            )
+            or self._early_body_statement_uses_target_expression(statement, target_expression)
+        )
+
     def _early_body_statement_touches_name(self, statement: cst.BaseStatement, name: str) -> bool:
         if self._body_usage_lookahead() <= 0:
             return False
@@ -314,10 +388,40 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
 
         return False
 
+    def _early_body_statement_touches_target_expression(
+        self,
+        statement: cst.BaseStatement,
+        target_expression: cst.BaseExpression,
+    ) -> bool:
+        if self._body_usage_lookahead() <= 0:
+            return False
+
+        for body_statement in leading_block_body_statements(
+            statement,
+            limit=self._body_usage_lookahead(),
+        ):
+            if statement_touches_target_expression(body_statement, target_expression):
+                return True
+
+        return False
+
     def _block_is_related_to_name(self, statement: cst.BaseStatement, name: str) -> bool:
         return self._block_uses_name(statement, name) or self._early_body_statement_touches_name(
             statement,
             name,
+        )
+
+    def _block_is_related_to_target_expression(
+        self,
+        statement: cst.BaseStatement,
+        target_expression: cst.BaseExpression,
+    ) -> bool:
+        return self._block_uses_target_expression(
+            statement,
+            target_expression,
+        ) or self._early_body_statement_touches_target_expression(
+            statement,
+            target_expression,
         )
 
     def _shares_immediate_receiver_subject(

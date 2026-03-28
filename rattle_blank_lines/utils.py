@@ -48,6 +48,25 @@ class AttributeReceiverCollector(cst.CSTVisitor):
         return False
 
 
+class ComparableExpressionCollector(cst.CSTVisitor):
+    """Collect expressions that are useful for direct target-to-use comparisons."""
+
+    def __init__(self) -> None:
+        self.expressions: list[cst.BaseExpression] = []
+
+    def visit_Attribute(self, node: cst.Attribute) -> bool:  # noqa: N802
+        self.expressions.append(node)
+        return True
+
+    def visit_Name(self, node: cst.Name) -> bool:  # noqa: N802
+        self.expressions.append(node)
+        return False
+
+    def visit_Subscript(self, node: cst.Subscript) -> bool:  # noqa: N802
+        self.expressions.append(node)
+        return True
+
+
 def collect_names(node: cst.CSTNode) -> set[str]:
     collector = NameCollector()
     node.visit(collector)
@@ -67,6 +86,13 @@ def collect_attribute_receivers(node: cst.CSTNode) -> list[cst.BaseExpression]:
     node.visit(collector)
 
     return collector.receivers
+
+
+def collect_comparable_expressions(node: cst.CSTNode) -> list[cst.BaseExpression]:
+    collector = ComparableExpressionCollector()
+    node.visit(collector)
+
+    return collector.expressions
 
 
 def is_blank_line(line: cst.EmptyLine) -> bool:
@@ -138,6 +164,23 @@ def extract_target_names(target: cst.BaseExpression) -> list[str]:
     return []
 
 
+def extract_target_expressions(target: cst.BaseExpression) -> list[cst.BaseExpression]:
+    if isinstance(target, (cst.Attribute, cst.Name, cst.Subscript)):
+        return [target]
+
+    if isinstance(target, (cst.List, cst.Tuple)):
+        expressions: list[cst.BaseExpression] = []
+        for element in target.elements:
+            expressions.extend(extract_target_expressions(element.value))
+
+        return expressions
+
+    if isinstance(target, cst.StarredElement):
+        return extract_target_expressions(target.value)
+
+    return []
+
+
 def target_reference_names(target: cst.BaseAssignTargetExpression) -> set[str]:
     if isinstance(target, cst.Name):
         return set()
@@ -185,12 +228,35 @@ def ordered_assigned_names(statement: cst.BaseStatement) -> list[str]:
     return names
 
 
+def ordered_assigned_target_expressions(statement: cst.BaseStatement) -> list[cst.BaseExpression]:
+    assignment = assignment_small_statement(statement)
+    if assignment is None:
+        return []
+
+    expressions: list[cst.BaseExpression] = []
+    if isinstance(assignment, cst.Assign):
+        for assign_target in assignment.targets:
+            expressions.extend(extract_target_expressions(assign_target.target))
+    elif isinstance(assignment, (cst.AnnAssign, cst.AugAssign)):
+        expressions.extend(extract_target_expressions(assignment.target))
+
+    return expressions
+
+
 def last_assigned_name(statement: cst.BaseStatement) -> str | None:
     names = ordered_assigned_names(statement)
     if not names:
         return None
 
     return names[-1]
+
+
+def last_assigned_target_expression(statement: cst.BaseStatement) -> cst.BaseExpression | None:
+    expressions = ordered_assigned_target_expressions(statement)
+    if not expressions:
+        return None
+
+    return expressions[-1]
 
 
 def assignment_reference_names(statement: cst.BaseStatement) -> set[str]:
@@ -432,6 +498,23 @@ def statement_reference_names(statement: cst.BaseStatement) -> set[str]:
 
 def statement_touches_name(statement: cst.BaseStatement, name: str) -> bool:
     return name in assigned_names(statement) or name in statement_reference_names(statement)
+
+
+def statement_touches_target_expression(
+    statement: cst.BaseStatement,
+    target_expression: cst.BaseExpression,
+) -> bool:
+    assigned_target_expressions = ordered_assigned_target_expressions(statement)
+    if any(
+        assigned_target_expression.deep_equals(target_expression)
+        for assigned_target_expression in assigned_target_expressions
+    ):
+        return True
+
+    return any(
+        expression.deep_equals(target_expression)
+        for expression in collect_comparable_expressions(statement)
+    )
 
 
 def statement_consumed_names(statement: cst.BaseStatement) -> set[str]:
