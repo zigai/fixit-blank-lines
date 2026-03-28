@@ -3,21 +3,34 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from rattle import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from rattle_blank_lines.rules.base import BaseBlockHeaderCuddleRule
+from rattle_blank_lines.rules.base import BaseBlockHeaderCuddleRule, validate_non_negative_int
 
 
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
-    """Allow cuddling when the previous assignment feeds the next block."""
+    """Allow cuddling only when preceding setup directly feeds the next block."""
 
     CODE = "BL300"
     ALIASES = ("BlockHeaderCuddleRelaxed",)
     STRICT = False
     BODY_USAGE_LOOKAHEAD = 4
+    SETTINGS = {
+        "body_usage_lookahead": RuleSetting(
+            int,
+            default=4,
+            validator=validate_non_negative_int,
+        ),
+        "setup_run_lookback": RuleSetting(
+            int,
+            default=3,
+            validator=validate_non_negative_int,
+        ),
+        "allow_setup_before_compact_guard_ladder": RuleSetting(bool, default=True),
+    }
     MESSAGE = (
         "BL300 Illegal cuddle before block header. "
-        "The immediately previous assignment must feed the block header or first body statement."
+        "The preceding setup must directly feed the upcoming block."
     )
 
     VALID = [
@@ -86,6 +99,38 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
                     merged[key] = value
 
                 return merged
+            """
+        ),
+        Valid(
+            """
+            def f(directory: str) -> None:
+                queue = Queue()
+                queue.put(directory)
+                while not queue.empty():
+                    item = queue.get()
+                    visit(item)
+            """
+        ),
+        Valid(
+            """
+            def f(shell_name: str) -> list[str]:
+                interactive = shell_name == "zsh"
+                if shell_name == "zsh":
+                    return ["-lic"]
+                if interactive:
+                    return ["-ic"]
+                return ["-lc"]
+            """
+        ),
+        Valid(
+            """
+            def f(candidate: object, parser_input: str, style: object) -> object:
+                display_value = parser_input or str(candidate)
+                if supports_live_interaction():
+                    highlight(display_value, style)
+                else:
+                    summarize(display_value, style)
+                return candidate
             """
         ),
     ]
@@ -187,6 +232,24 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
                     merged[key] = value
 
                 return merged
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            def f(default_value: object) -> object:
+                prompt_kwargs: dict[str, object] = {}
+                if default_value:
+                    prompt_kwargs["placeholder"] = str(default_value)
+                return prompt_kwargs
+            """,
+            expected_replacement="""
+            def f(default_value: object) -> object:
+                prompt_kwargs: dict[str, object] = {}
+
+                if default_value:
+                    prompt_kwargs["placeholder"] = str(default_value)
+                return prompt_kwargs
             """,
             expected_message=MESSAGE,
         ),

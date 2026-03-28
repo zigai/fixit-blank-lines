@@ -8,15 +8,19 @@ from libcst.metadata import ParentNodeProvider, PositionProvider
 from rattle_blank_lines.utils import (
     assignment_small_statement,
     collect_names,
+    contiguous_run_before,
+    control_block_consumed_names_in_early_body,
     count_non_empty_lines,
     first_statement_in_block,
     has_separator,
     header_expression_nodes,
+    is_compact_guard_if,
     is_docstring_statement,
     is_header_block_statement,
     last_assigned_name,
     leading_block_body_statements,
     prepend_blank_line,
+    starts_compact_guard_ladder,
     statement_reference_names,
 )
 
@@ -129,29 +133,27 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         block_index: int,
         block_statement: cst.BaseStatement,
     ) -> bool:
+        if not self.STRICT and self._has_immediate_setup_bridge(body, block_index, block_statement):
+            return True
+
+        if not self.STRICT and self._continues_compact_guard_ladder(
+            body, block_index, block_statement
+        ):
+            return True
+
         candidate_run = self._assignment_run(body, block_index)
-        if not candidate_run:
-            return False
-
-        if not all(
+        has_assignment_run = bool(candidate_run) and all(
             assignment_small_statement(statement) is not None for statement in candidate_run
-        ):
-            return False
-
-        last_name = last_assigned_name(candidate_run[-1])
-        if last_name is None:
-            return False
-
-        if self._header_uses_name(block_statement, last_name):
+        )
+        last_name = last_assigned_name(candidate_run[-1]) if has_assignment_run else None
+        if last_name is not None and self._block_uses_name(block_statement, last_name):
             return True
 
-        if self.ALLOW_FIRST_BODY_USAGE and self._first_body_statement_uses_name(
+        return (not self.STRICT) and self._is_allowed_setup_run_cuddle(
+            body,
+            block_index,
             block_statement,
-            last_name,
-        ):
-            return True
-
-        return self._early_body_statement_uses_name(block_statement, last_name)
+        )
 
     def _assignment_run(
         self,
@@ -173,6 +175,9 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         )
 
     def _first_body_statement_uses_name(self, statement: cst.BaseStatement, name: str) -> bool:
+        if isinstance(statement, cst.If):
+            return name in control_block_consumed_names_in_early_body(statement, limit=1)
+
         first_statement = first_statement_in_block(statement)
         if first_statement is None:
             return False
@@ -180,17 +185,160 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         return name in collect_names(first_statement)
 
     def _early_body_statement_uses_name(self, statement: cst.BaseStatement, name: str) -> bool:
-        if self.BODY_USAGE_LOOKAHEAD <= 0:
+        if self._body_usage_lookahead() <= 0:
             return False
+
+        if isinstance(statement, cst.If):
+            return name in control_block_consumed_names_in_early_body(
+                statement,
+                limit=self._body_usage_lookahead(),
+            )
 
         for body_statement in leading_block_body_statements(
             statement,
-            limit=self.BODY_USAGE_LOOKAHEAD,
+            limit=self._body_usage_lookahead(),
         ):
             if name in statement_reference_names(body_statement):
                 return True
 
         return False
+
+    def _body_usage_lookahead(self) -> int:
+        settings = getattr(self, "settings", {})
+        try:
+            return int(settings["body_usage_lookahead"])
+        except KeyError:
+            return self.BODY_USAGE_LOOKAHEAD
+
+    def _setup_run_lookback(self) -> int:
+        settings = getattr(self, "settings", {})
+        try:
+            return int(settings["setup_run_lookback"])
+        except KeyError:
+            return 3
+
+    def _allow_setup_before_compact_guard_ladder(self) -> bool:
+        settings = getattr(self, "settings", {})
+        try:
+            return bool(settings["allow_setup_before_compact_guard_ladder"])
+        except KeyError:
+            return True
+
+    def _block_uses_name(self, statement: cst.BaseStatement, name: str) -> bool:
+        return (
+            self._header_uses_name(statement, name)
+            or (
+                self.ALLOW_FIRST_BODY_USAGE
+                and self._first_body_statement_uses_name(statement, name)
+            )
+            or self._early_body_statement_uses_name(statement, name)
+        )
+
+    def _is_guard_ladder_setup_cuddle(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+        assignment_position: int,
+        trailing_run: Sequence[cst.BaseStatement],
+    ) -> bool:
+        return (
+            assignment_position == 0
+            and not trailing_run
+            and self._allow_setup_before_compact_guard_ladder()
+            and starts_compact_guard_ladder(body, block_index)
+        )
+
+    def _continues_compact_guard_ladder(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+        block_statement: cst.BaseStatement,
+    ) -> bool:
+        return (
+            block_index > 0
+            and is_compact_guard_if(block_statement)
+            and is_compact_guard_if(body[block_index - 1])
+            and starts_compact_guard_ladder(body, block_index - 1)
+        )
+
+    def _has_immediate_setup_bridge(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+        block_statement: cst.BaseStatement,
+    ) -> bool:
+        if block_index < 2:
+            return False
+
+        assignment_statement = body[block_index - 2]
+        last_name = last_assigned_name(assignment_statement)
+        if last_name is None:
+            return False
+
+        return self._is_setup_continuation_statement(
+            body[block_index - 1],
+            last_name,
+        ) and self._block_uses_name(block_statement, last_name)
+
+    def _is_setup_continuation_statement(
+        self,
+        statement: cst.BaseStatement,
+        name: str,
+    ) -> bool:
+        if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
+            return False
+
+        expr = statement.body[0]
+        if not isinstance(expr, cst.Expr):
+            return False
+
+        value = expr.value.func if isinstance(expr.value, cst.Call) else expr.value
+
+        return (
+            isinstance(value, cst.Attribute)
+            and isinstance(value.value, cst.Name)
+            and value.value.value == name
+        )
+
+    def _is_allowed_setup_run_cuddle(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+        block_statement: cst.BaseStatement,
+    ) -> bool:
+        lookback = self._setup_run_lookback()
+        if lookback <= 0:
+            return False
+
+        _run_start, run = contiguous_run_before(body, block_index)
+        if not run:
+            return False
+
+        run = run[-lookback:]
+        assignment_positions = [
+            position
+            for position, statement in enumerate(run)
+            if assignment_small_statement(statement) is not None
+        ]
+        if len(assignment_positions) != 1:
+            return False
+
+        assignment_position = assignment_positions[0]
+        assignment_statement = run[assignment_position]
+        last_name = last_assigned_name(assignment_statement)
+        if last_name is None:
+            return False
+
+        trailing_run = run[assignment_position + 1 :]
+        if self._is_guard_ladder_setup_cuddle(body, block_index, assignment_position, trailing_run):
+            return True
+
+        trailing_run_uses_name = bool(trailing_run) and all(
+            self._is_setup_continuation_statement(statement, last_name)
+            for statement in trailing_run
+        )
+
+        return trailing_run_uses_name and self._block_uses_name(block_statement, last_name)
 
 
 def validate_non_negative_int(value: object) -> object:

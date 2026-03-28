@@ -27,8 +27,25 @@ class NameCollector(cst.CSTVisitor):
         self.names.add(node.value)
 
 
+class NestedNameCollector(cst.CSTVisitor):
+    """Collect all ``Name`` values below a node, including nested defs/classes."""
+
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def visit_Name(self, node: cst.Name) -> None:  # noqa: N802
+        self.names.add(node.value)
+
+
 def collect_names(node: cst.CSTNode) -> set[str]:
     collector = NameCollector()
+    node.visit(collector)
+
+    return collector.names
+
+
+def collect_names_including_nested(node: cst.CSTNode) -> set[str]:
+    collector = NestedNameCollector()
     node.visit(collector)
 
     return collector.names
@@ -174,6 +191,24 @@ def assignment_reference_names(statement: cst.BaseStatement) -> set[str]:
             names.update(collect_names(assignment.value))
 
         names.update(target_reference_names(assignment.target))
+    elif isinstance(assignment, cst.AugAssign):
+        names.update(collect_names(assignment.target))
+        names.update(collect_names(assignment.value))
+
+    return names
+
+
+def assignment_consumed_names(statement: cst.BaseStatement) -> set[str]:
+    assignment = assignment_small_statement(statement)
+    if assignment is None:
+        return set()
+
+    names: set[str] = set()
+    if isinstance(assignment, cst.Assign):
+        names.update(collect_names(assignment.value))
+    elif isinstance(assignment, cst.AnnAssign):
+        if assignment.value is not None:
+            names.update(collect_names(assignment.value))
     elif isinstance(assignment, cst.AugAssign):
         names.update(collect_names(assignment.target))
         names.update(collect_names(assignment.value))
@@ -329,11 +364,45 @@ def small_statement_reference_names(statement: cst.BaseSmallStatement) -> set[st
     return set()
 
 
+def small_statement_consumed_names(statement: cst.BaseSmallStatement) -> set[str]:
+    if isinstance(statement, cst.Assert):
+        return _assert_reference_names(statement)
+
+    if isinstance(statement, (cst.Assign, cst.AnnAssign, cst.AugAssign)):
+        return assignment_consumed_names(cst.SimpleStatementLine(body=[statement]))
+
+    if isinstance(statement, cst.Expr):
+        return collect_names(statement.value)
+
+    if isinstance(statement, (cst.Raise, cst.Return)):
+        return _branch_reference_names(statement)
+
+    return set()
+
+
 def statement_reference_names(statement: cst.BaseStatement) -> set[str]:
     if isinstance(statement, cst.SimpleStatementLine):
         names: set[str] = set()
         for small_statement in statement.body:
             names.update(small_statement_reference_names(small_statement))
+
+        return names
+
+    if is_control_block_statement(statement):
+        names: set[str] = set()
+        for expression in header_expression_nodes(statement):
+            names.update(collect_names(expression))
+
+        return names
+
+    return set()
+
+
+def statement_consumed_names(statement: cst.BaseStatement) -> set[str]:
+    if isinstance(statement, cst.SimpleStatementLine):
+        names: set[str] = set()
+        for small_statement in statement.body:
+            names.update(small_statement_consumed_names(small_statement))
 
         return names
 
@@ -397,6 +466,16 @@ def suite_statements(suite: cst.BaseSuite) -> list[cst.BaseStatement]:
     return []
 
 
+def primary_body_statements(statement: cst.BaseStatement) -> list[cst.BaseStatement]:
+    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.While, cst.With)):
+        return suite_statements(statement.body)
+
+    if isinstance(statement, cst.Match) and statement.cases:
+        return suite_statements(statement.cases[0].body)
+
+    return []
+
+
 def leading_block_body_statements(
     statement: cst.BaseStatement,
     *,
@@ -405,13 +484,260 @@ def leading_block_body_statements(
     if limit <= 0:
         return []
 
-    if isinstance(statement, (cst.For, cst.If, cst.While, cst.With)):
-        return suite_statements(statement.body)[:limit]
+    return primary_body_statements(statement)[:limit]
 
-    if isinstance(statement, cst.Match) and statement.cases:
-        return suite_statements(statement.cases[0].body)[:limit]
 
-    return []
+def _leading_suite_statements(
+    suite: cst.BaseSuite,
+    *,
+    limit: int,
+) -> list[cst.BaseStatement]:
+    if limit <= 0:
+        return []
+
+    return suite_statements(suite)[:limit]
+
+
+def _if_branch_statement_groups(statement: cst.If) -> list[list[cst.BaseStatement]]:
+    groups = [suite_statements(statement.body)]
+    if statement.orelse is not None:
+        groups.append(suite_statements(statement.orelse.body))
+
+    return groups
+
+
+def control_block_consumed_names_in_early_body(
+    statement: cst.BaseStatement,
+    *,
+    limit: int,
+) -> set[str]:
+    if limit <= 0:
+        return set()
+
+    names: set[str] = set()
+    if isinstance(statement, cst.If):
+        for branch in _if_branch_statement_groups(statement):
+            for branch_statement in branch[:limit]:
+                names.update(statement_consumed_names(branch_statement))
+
+        return names
+
+    if isinstance(statement, (cst.For, cst.Try, cst.While, cst.With)):
+        for body_statement in _leading_suite_statements(statement.body, limit=limit):
+            names.update(statement_consumed_names(body_statement))
+
+        return names
+
+    if isinstance(statement, cst.Match):
+        for case in statement.cases:
+            for body_statement in _leading_suite_statements(case.body, limit=limit):
+                names.update(statement_consumed_names(body_statement))
+
+        return names
+
+    return names
+
+
+def flat_body_assigned_names(statement: cst.BaseStatement) -> set[str]:
+    names: set[str] = set()
+    for body_statement in primary_body_statements(statement):
+        names.update(assigned_names(body_statement))
+
+    return names
+
+
+def contiguous_run_before(
+    body: Sequence[cst.BaseStatement],
+    index: int,
+) -> tuple[int, list[cst.BaseStatement]]:
+    if index <= 0:
+        return 0, []
+
+    start = index - 1
+    while start > 0 and not has_separator(body[start]):
+        start -= 1
+
+    if has_separator(body[start]):
+        start += 1
+
+    return start, list(body[start:index])
+
+
+def compact_tail_run_before(
+    body: Sequence[cst.BaseStatement],
+    branch_index: int,
+) -> tuple[int, list[cst.BaseStatement]]:
+    return contiguous_run_before(body, branch_index)
+
+
+def is_compact_guard_if(statement: cst.BaseStatement) -> bool:
+    if (
+        not isinstance(statement, cst.If)
+        or statement.orelse is not None
+        or not isinstance(statement.body, cst.IndentedBlock)
+    ):
+        return False
+
+    body_statements = statement.body.body
+    if not 1 <= len(body_statements) <= 2:
+        return False
+
+    if not all(
+        isinstance(body_statement, cst.SimpleStatementLine) for body_statement in body_statements
+    ):
+        return False
+
+    return is_branch_statement(body_statements[-1])
+
+
+def starts_compact_guard_ladder(
+    body: Sequence[cst.BaseStatement],
+    start_index: int,
+) -> bool:
+    if start_index < 0 or start_index >= len(body):
+        return False
+
+    index = start_index
+    while index < len(body):
+        statement = body[index]
+        if not is_compact_guard_if(statement):
+            break
+
+        next_index = index + 1
+        if next_index >= len(body) or has_separator(body[next_index]):
+            return False
+
+        if is_branch_statement(body[next_index]):
+            return True
+
+        index = next_index
+
+    return False
+
+
+def is_compact_guard_ladder_tail(
+    body: Sequence[cst.BaseStatement],
+    branch_index: int,
+) -> bool:
+    if branch_index < 0 or branch_index >= len(body) or not is_branch_statement(body[branch_index]):
+        return False
+
+    _start_index, run = compact_tail_run_before(body, branch_index)
+    run = [*run, body[branch_index]]
+    if len(run) < 2:
+        return False
+
+    if assignment_small_statement(run[0]) is not None:
+        run = run[1:]
+
+    if len(run) < 2 or not is_branch_statement(run[-1]):
+        return False
+
+    return all(is_compact_guard_if(statement) for statement in run[:-1])
+
+
+def is_pytest_raises_with(statement: cst.BaseStatement) -> bool:
+    if not isinstance(statement, cst.With) or not statement.items:
+        return False
+
+    call = statement.items[0].item
+    if not isinstance(call, cst.Call):
+        return False
+
+    func = call.func
+
+    return (
+        isinstance(func, cst.Attribute)
+        and isinstance(func.value, cst.Name)
+        and func.value.value == "pytest"
+        and func.attr.value == "raises"
+    )
+
+
+def next_statement_inspects_with_assignment(
+    current_statement: cst.BaseStatement,
+    next_statement: cst.BaseStatement,
+) -> bool:
+    if not isinstance(current_statement, cst.With) or is_pytest_raises_with(current_statement):
+        return False
+
+    body_statements = primary_body_statements(current_statement)
+    if not body_statements or not all(
+        isinstance(body_statement, cst.SimpleStatementLine) for body_statement in body_statements
+    ):
+        return False
+
+    names: set[str] = set()
+    for body_statement in body_statements:
+        names.update(assigned_names(body_statement))
+
+    if not names:
+        return False
+
+    return bool(statement_reference_names(next_statement).intersection(names))
+
+
+def next_control_block_consumes_assignment(
+    body: Sequence[cst.BaseStatement],
+    assignment_index: int,
+    *,
+    limit: int,
+) -> bool:
+    next_index = assignment_index + 1
+    if limit <= 0 or next_index >= len(body):
+        return False
+
+    next_statement = body[next_index]
+    if not is_control_block_statement(next_statement):
+        return False
+
+    assigned = assigned_names(body[assignment_index])
+    if not assigned:
+        return False
+
+    return bool(
+        control_block_consumed_names_in_early_body(
+            next_statement,
+            limit=limit,
+        ).intersection(assigned)
+    )
+
+
+def previous_block_assigns_current_target(
+    body: Sequence[cst.BaseStatement],
+    assignment_index: int,
+) -> bool:
+    if assignment_index <= 0 or assignment_index >= len(body):
+        return False
+
+    current_names = assigned_names(body[assignment_index])
+    if not current_names:
+        return False
+
+    previous_statement = body[assignment_index - 1]
+    if not is_control_block_statement(previous_statement):
+        return False
+
+    return bool(flat_body_assigned_names(previous_statement).intersection(current_names))
+
+
+def next_local_definition_uses_assignment(
+    body: Sequence[cst.BaseStatement],
+    assignment_index: int,
+) -> bool:
+    next_index = assignment_index + 1
+    if next_index >= len(body):
+        return False
+
+    assigned = assigned_names(body[assignment_index])
+    if not assigned:
+        return False
+
+    next_statement = body[next_index]
+    if not isinstance(next_statement, (cst.ClassDef, cst.FunctionDef)):
+        return False
+
+    return bool(collect_names_including_nested(next_statement).intersection(assigned))
 
 
 def control_block_ends_with_loop_exit(statement: cst.BaseStatement) -> bool:
@@ -490,30 +816,47 @@ __all__ = [
     "CONTROL_BLOCK_STATEMENTS",
     "HEADER_BLOCK_STATEMENTS",
     "NameCollector",
+    "NestedNameCollector",
     "assigned_names",
+    "assignment_consumed_names",
     "assignment_reference_names",
     "assignment_small_statement",
     "collect_names",
+    "collect_names_including_nested",
+    "compact_tail_run_before",
+    "contiguous_run_before",
+    "control_block_consumed_names_in_early_body",
     "control_block_ends_with_loop_exit",
     "count_non_empty_lines",
     "extract_target_names",
     "first_statement_in_block",
     "first_statement_in_suite",
+    "flat_body_assigned_names",
     "has_nontrivial_related_use",
     "has_separator",
     "header_expression_nodes",
     "is_blank_line",
     "is_branch_statement",
+    "is_compact_guard_if",
+    "is_compact_guard_ladder_tail",
     "is_control_block_statement",
     "is_docstring_statement",
     "is_header_block_statement",
     "is_pass_only_try",
+    "is_pytest_raises_with",
     "is_same_subject_simple_if_chain",
     "is_single_line_control_block",
     "last_assigned_name",
     "leading_block_body_statements",
+    "next_control_block_consumes_assignment",
+    "next_local_definition_uses_assignment",
+    "next_statement_inspects_with_assignment",
     "ordered_assigned_names",
     "prepend_blank_line",
+    "previous_block_assigns_current_target",
+    "primary_body_statements",
+    "starts_compact_guard_ladder",
+    "statement_consumed_names",
     "statement_reference_names",
     "suite_statements",
     "target_reference_names",

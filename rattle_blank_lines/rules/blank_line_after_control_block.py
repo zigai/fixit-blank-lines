@@ -3,18 +3,21 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
-from rattle import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, RuleSetting, Valid
 
-from rattle_blank_lines.rules.base import BaseBlankLinesRule
+from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 from rattle_blank_lines.utils import (
     assignment_small_statement,
     control_block_ends_with_loop_exit,
     has_nontrivial_related_use,
     has_separator,
+    is_compact_guard_if,
     is_control_block_statement,
     is_pass_only_try,
+    is_pytest_raises_with,
     is_same_subject_simple_if_chain,
     is_single_line_control_block,
+    next_statement_inspects_with_assignment,
     prepend_blank_line,
 )
 
@@ -24,8 +27,17 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
 
     CODE = "BL350"
     ALIASES = ("BlankLineAfterControlBlock",)
-    RELATED_USE_LOOKAHEAD = 2
     MESSAGE = "BL350 Missing blank line after multiline control-flow block statement."
+    SETTINGS = {
+        "related_use_lookahead": RuleSetting(
+            int,
+            default=2,
+            validator=validate_non_negative_int,
+        ),
+        "allow_compact_guard_ladders": RuleSetting(bool, default=True),
+        "allow_pytest_raises_clusters": RuleSetting(bool, default=True),
+        "allow_with_immediate_inspection": RuleSetting(bool, default=True),
+    }
 
     VALID = [
         Valid(
@@ -87,6 +99,33 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                 return out
             """
         ),
+        Valid(
+            """
+            def f() -> None:
+                with pytest.raises(ValueError):
+                    parse("x")
+                with pytest.raises(TypeError):
+                    parse(3)
+            """
+        ),
+        Valid(
+            """
+            def f(path: str) -> None:
+                with open(path) as handle:
+                    content = handle.read()
+                assert content
+            """
+        ),
+        Valid(
+            """
+            def f(shell_name: str, interactive: bool) -> list[str]:
+                if shell_name == "zsh":
+                    return ["-lic"]
+                if interactive:
+                    return ["-ic"]
+                return ["-lc"]
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -127,6 +166,8 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             """
             def f(value: int, other: int) -> int:
                 if value > 0:
+                    log(value)
+                    audit(value)
                     return value
                 if other > 0:
                     return other
@@ -136,6 +177,8 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             expected_replacement="""
             def f(value: int, other: int) -> int:
                 if value > 0:
+                    log(value)
+                    audit(value)
                     return value
 
                 if other > 0:
@@ -162,33 +205,7 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             current_statement = body[index]
             next_statement = body[index + 1]
 
-            if not is_control_block_statement(current_statement):
-                continue
-
-            if is_single_line_control_block(current_statement):
-                continue
-
-            if is_same_subject_simple_if_chain(current_statement, next_statement):
-                continue
-
-            if has_separator(next_statement):
-                continue
-
-            if assignment_small_statement(
-                next_statement
-            ) is not None and has_nontrivial_related_use(
-                body,
-                index + 1,
-                lookahead=self.RELATED_USE_LOOKAHEAD,
-            ):
-                continue
-
-            if control_block_ends_with_loop_exit(current_statement):
-                continue
-
-            if is_pass_only_try(current_statement) and isinstance(
-                next_statement, cst.SimpleStatementLine
-            ):
+            if self._should_skip_pair(body, index, current_statement, next_statement):
                 continue
 
             self.report(
@@ -196,6 +213,93 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                 message=self.MESSAGE,
                 replacement=prepend_blank_line(next_statement),
             )
+
+    def _should_skip_pair(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+        current_statement: cst.BaseStatement,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        return (
+            not is_control_block_statement(current_statement)
+            or is_single_line_control_block(current_statement)
+            or is_same_subject_simple_if_chain(current_statement, next_statement)
+            or has_separator(next_statement)
+            or self._is_pytest_raises_cluster(current_statement, next_statement)
+            or self._is_compact_guard_transition(current_statement, next_statement)
+            or self._is_with_immediate_inspection(current_statement, next_statement)
+            or self._is_related_assignment_fallthrough(body, index, next_statement)
+            or control_block_ends_with_loop_exit(current_statement)
+            or (
+                is_pass_only_try(current_statement)
+                and isinstance(next_statement, cst.SimpleStatementLine)
+            )
+        )
+
+    def _is_pytest_raises_cluster(
+        self,
+        current_statement: cst.BaseStatement,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        return (
+            self._allow_pytest_raises_clusters()
+            and is_pytest_raises_with(current_statement)
+            and is_pytest_raises_with(next_statement)
+        )
+
+    def _is_compact_guard_transition(
+        self,
+        current_statement: cst.BaseStatement,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        if not self._allow_compact_guard_ladders() or not is_compact_guard_if(current_statement):
+            return False
+
+        if is_compact_guard_if(next_statement):
+            return True
+
+        return (
+            isinstance(next_statement, cst.SimpleStatementLine)
+            and len(next_statement.body) == 1
+            and isinstance(next_statement.body[0], (cst.Raise, cst.Return, cst.Break, cst.Continue))
+        )
+
+    def _is_with_immediate_inspection(
+        self,
+        current_statement: cst.BaseStatement,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        return self._allow_with_immediate_inspection() and next_statement_inspects_with_assignment(
+            current_statement,
+            next_statement,
+        )
+
+    def _is_related_assignment_fallthrough(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        return assignment_small_statement(
+            next_statement
+        ) is not None and has_nontrivial_related_use(
+            body,
+            index + 1,
+            lookahead=self._related_use_lookahead(),
+        )
+
+    def _related_use_lookahead(self) -> int:
+        return int(self.settings["related_use_lookahead"])
+
+    def _allow_compact_guard_ladders(self) -> bool:
+        return bool(self.settings["allow_compact_guard_ladders"])
+
+    def _allow_pytest_raises_clusters(self) -> bool:
+        return bool(self.settings["allow_pytest_raises_clusters"])
+
+    def _allow_with_immediate_inspection(self) -> bool:
+        return bool(self.settings["allow_with_immediate_inspection"])
 
 
 __all__ = ["BlankLineAfterControlBlock"]

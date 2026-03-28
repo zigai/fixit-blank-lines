@@ -7,10 +7,14 @@ from rattle import Invalid, LintRule, RuleSetting, Valid
 
 from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 from rattle_blank_lines.utils import (
+    assigned_names,
+    compact_tail_run_before,
     has_separator,
     is_branch_statement,
+    is_compact_guard_ladder_tail,
     is_terminal_exception_cleanup_run,
     prepend_blank_line,
+    statement_reference_names,
 )
 
 
@@ -26,6 +30,13 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             default=2,
             validator=validate_non_negative_int,
         ),
+        "compact_tail_max_statements": RuleSetting(
+            int,
+            default=2,
+            validator=validate_non_negative_int,
+        ),
+        "allow_related_return_tails": RuleSetting(bool, default=True),
+        "allow_guard_ladder_final_branch": RuleSetting(bool, default=True),
     }
 
     VALID = [
@@ -106,6 +117,23 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
                     cleanup()
                     log_teardown()
                     return
+            """
+        ),
+        Valid(
+            """
+            def f(created_at: object) -> object:
+                payload = {"created_at": created_at}
+                return ArchivedPost(created_at=created_at, payload=payload)
+            """
+        ),
+        Valid(
+            """
+            def f(shell_name: str, interactive: bool) -> list[str]:
+                if shell_name == "zsh":
+                    return ["-lic"]
+                if interactive:
+                    return ["-ic"]
+                return ["-lc"]
             """
         ),
     ]
@@ -191,16 +219,13 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             if index == 0:
                 continue
 
-            if not is_branch_statement(statement):
-                continue
-
-            if has_separator(statement):
-                continue
-
-            if self._follows_suite_docstring(body, index, suite_can_have_docstring):
-                continue
-
-            if is_terminal_exception_cleanup_run(body, index - 1, suite_parent):
+            if self._should_skip_branch(
+                body,
+                index,
+                statement,
+                suite_can_have_docstring=suite_can_have_docstring,
+                suite_parent=suite_parent,
+            ):
                 continue
 
             self.report(
@@ -208,6 +233,77 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
                 message=self.MESSAGE,
                 replacement=prepend_blank_line(statement),
             )
+
+    def _should_skip_branch(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+        statement: cst.BaseStatement,
+        *,
+        suite_can_have_docstring: bool,
+        suite_parent: cst.CSTNode | None,
+    ) -> bool:
+        return (
+            not is_branch_statement(statement)
+            or has_separator(statement)
+            or self._follows_suite_docstring(body, index, suite_can_have_docstring)
+            or is_terminal_exception_cleanup_run(body, index - 1, suite_parent)
+            or (self._allow_related_return_tails() and self._is_compact_related_tail(body, index))
+            or (
+                self._allow_guard_ladder_final_branch()
+                and is_compact_guard_ladder_tail(body, index)
+            )
+        )
+
+    def _is_compact_related_tail(
+        self,
+        body: Sequence[cst.BaseStatement],
+        branch_index: int,
+    ) -> bool:
+        if branch_index != len(body) - 1:
+            return False
+
+        _run_start, run = compact_tail_run_before(body, branch_index)
+        branch_statement = body[branch_index]
+        run_is_compact = (
+            bool(run)
+            and len(run) <= int(self.settings["compact_tail_max_statements"])
+            and all(isinstance(statement, cst.SimpleStatementLine) for statement in run)
+        )
+        if not run_is_compact:
+            return False
+
+        assigned: set[str] = set()
+        for statement in run:
+            assigned.update(assigned_names(statement))
+
+        references_assigned = bool(assigned) and bool(
+            statement_reference_names(branch_statement).intersection(assigned)
+        )
+        if not references_assigned:
+            return False
+
+        plain_single_assignment_return = False
+
+        if (
+            isinstance(branch_statement, cst.SimpleStatementLine)
+            and len(branch_statement.body) == 1
+        ):
+            branch = branch_statement.body[0]
+            plain_single_assignment_return = (
+                isinstance(branch, cst.Return)
+                and isinstance(branch.value, cst.Name)
+                and branch.value.value in assigned
+                and len(run) == 1
+            )
+
+        return not plain_single_assignment_return
+
+    def _allow_related_return_tails(self) -> bool:
+        return bool(self.settings["allow_related_return_tails"])
+
+    def _allow_guard_ladder_final_branch(self) -> bool:
+        return bool(self.settings["allow_guard_ladder_final_branch"])
 
 
 __all__ = ["BlankLineBeforeBranchInLargeSuite"]

@@ -8,21 +8,24 @@ from rattle import Invalid, LintRule, RuleSetting, Valid
 
 from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 from rattle_blank_lines.utils import (
+    assigned_names,
     assignment_small_statement,
     has_nontrivial_related_use,
     has_separator,
+    is_compact_guard_if,
     is_control_block_statement,
     is_terminal_exception_cleanup_run,
+    next_control_block_consumes_assignment,
+    next_local_definition_uses_assignment,
     prepend_blank_line,
 )
 
 
 class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
-    """Require separators before assignment lines after non-assignment lines."""
+    """Require separators before assignments that do not continue the local flow."""
 
     CODE = "BL210"
     ALIASES = ("BlankLineBeforeAssignment",)
-    RELATED_USE_LOOKAHEAD = 2
     MESSAGE = (
         "BL210 Missing blank line before assignment statement "
         "that follows a non-assignment statement."
@@ -33,6 +36,13 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             default=3,
             validator=validate_non_negative_int,
         ),
+        "related_use_lookahead": RuleSetting(
+            int,
+            default=2,
+            validator=validate_non_negative_int,
+        ),
+        "allow_local_helper_capture": RuleSetting(bool, default=True),
+        "allow_post_guard_continuation": RuleSetting(bool, default=True),
     }
 
     VALID = [
@@ -146,6 +156,38 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                 return make_logger(logger_name)
             """
         ),
+        Valid(
+            """
+            def f(flag: bool, value: str) -> str:
+                if not flag:
+                    return value
+                normalized = value.strip()
+                return normalized
+            """
+        ),
+        Valid(
+            """
+            def f(candidate: object, parser_input: str, style: object) -> object:
+                validate(candidate)
+                display_value = parser_input or str(candidate)
+                if supports_live_interaction():
+                    highlight(display_value, style)
+                else:
+                    summarize(display_value, style)
+                return candidate
+            """
+        ),
+        Valid(
+            """
+            def f(monkeypatch: object) -> dict[str, object]:
+                monkeypatch.setenv("TOKEN", "abc")
+                calls: dict[str, object] = {}
+                class FakeRepo:
+                    def __init__(self) -> None:
+                        calls["created"] = True
+                return calls
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -225,6 +267,26 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             expected_message=MESSAGE,
             options={"short_control_flow_max_statements": 1},
         ),
+        Invalid(
+            """
+            def f(candidate: object) -> object:
+                validate(candidate)
+                display_value = str(candidate)
+                if supports_live_interaction():
+                    highlight(candidate)
+                return candidate
+            """,
+            expected_replacement="""
+            def f(candidate: object) -> object:
+                validate(candidate)
+
+                display_value = str(candidate)
+                if supports_live_interaction():
+                    highlight(candidate)
+                return candidate
+            """,
+            expected_message=MESSAGE,
+        ),
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -294,19 +356,68 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
         suite_parent: cst.CSTNode | None,
     ) -> bool:
         previous_statement = body[index - 1]
-        if assignment_small_statement(previous_statement) is not None:
-            return True
-
-        if self._follows_suite_docstring(body, index, suite_can_have_docstring):
-            return True
-
-        if is_terminal_exception_cleanup_run(body, index, suite_parent):
-            return True
-
-        return has_nontrivial_related_use(
+        related_use = has_nontrivial_related_use(
             body,
             index,
-            lookahead=self.RELATED_USE_LOOKAHEAD,
+            lookahead=self._related_use_lookahead(),
+        )
+        return (
+            assignment_small_statement(previous_statement) is not None
+            or self._follows_suite_docstring(body, index, suite_can_have_docstring)
+            or is_terminal_exception_cleanup_run(body, index, suite_parent)
+            or next_control_block_consumes_assignment(
+                body,
+                index,
+                limit=self._related_use_lookahead(),
+            )
+            or (
+                self._allow_local_helper_capture()
+                and next_local_definition_uses_assignment(body, index)
+            )
+            or (
+                self._allow_post_guard_continuation()
+                and index > 0
+                and is_compact_guard_if(body[index - 1])
+                and (related_use or self._has_direct_following_branch_use(body, index))
+            )
+            or related_use
+        )
+
+    def _related_use_lookahead(self) -> int:
+        return int(self.settings["related_use_lookahead"])
+
+    def _allow_local_helper_capture(self) -> bool:
+        return bool(self.settings["allow_local_helper_capture"])
+
+    def _allow_post_guard_continuation(self) -> bool:
+        return bool(self.settings["allow_post_guard_continuation"])
+
+    def _has_direct_following_branch_use(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+    ) -> bool:
+        next_index = index + 1
+        if next_index >= len(body):
+            return False
+
+        statement = body[next_index]
+        if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
+            return False
+
+        branch = statement.body[0]
+        names = assigned_names(body[index])
+        if not names:
+            return False
+
+        return (
+            isinstance(branch, cst.Return)
+            and isinstance(branch.value, cst.Name)
+            and branch.value.value in names
+        ) or (
+            isinstance(branch, cst.Raise)
+            and isinstance(branch.exc, cst.Name)
+            and branch.exc.value in names
         )
 
 
