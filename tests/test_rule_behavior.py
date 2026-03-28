@@ -266,6 +266,34 @@ def test_bl300_allows_immediate_same_receiver_setup_and_guard() -> None:
     assert reports == []
 
 
+def test_bl300_allows_immediate_subscript_update_and_guard() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(slots: dict[str, int], key: str) -> None:
+            slots[key] -= 1
+            if slots[key] < 0:
+                raise ValueError(key)
+        """,
+    )
+
+    assert reports == []
+
+
+def test_bl300_allows_immediate_attribute_assignment_and_guard() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(session: object) -> None:
+            session.ready = compute_ready_flag()
+            if session.ready:
+                start(session)
+        """,
+    )
+
+    assert reports == []
+
+
 def test_bl350_reports_first_line_of_following_multiline_statement() -> None:
     _, reports = _run_rule(
         BlankLineAfterControlBlock,
