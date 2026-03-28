@@ -503,7 +503,7 @@ wheels = [
 
 [[package]]
 name = "rattle-blank-lines"
-version = "0.2.1"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "rattle-lint" },
@@ -534,7 +534,7 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'test'" },
-    { name = "rattle-lint", specifier = ">=1.0.3" },
+    { name = "rattle-lint", specifier = ">=1.0.4" },
     { name = "rattle-lint", marker = "extra == 'dev'" },
     { name = "rattle-lint", marker = "extra == 'test'" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.8" },
@@ -543,7 +543,7 @@ provides-extras = ["test", "dev"]
 
 [[package]]
 name = "rattle-lint"
-version = "1.0.3"
+version = "1.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -552,9 +552,9 @@ dependencies = [
     { name = "packaging" },
     { name = "trailrunner" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/cf/7e8fbea7ce6c93b7ab735d69132a93322eab1e46307c44595283532c21c4/rattle_lint-1.0.3.tar.gz", hash = "sha256:406ad8c3c3c0bc78bdac23e5bfaf5cf92d0ec1433a59047a55da458436ad7ae2", size = 171495, upload-time = "2026-03-28T19:53:14.668Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/70/4c9ce3178946ad1deb2cbd746c78d81aa8c435c99492bcc8cf44d4164117/rattle_lint-1.0.4.tar.gz", hash = "sha256:d1cbe89376fef1fc5a17bad74e6911d900c90025ff7a3bb086838889daebabcf", size = 171674, upload-time = "2026-03-28T21:15:13.926Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/0b/4a77b4bfe671529244ba3ddbb9b75536eecaf2369e60dce171059ea943a1/rattle_lint-1.0.3-py3-none-any.whl", hash = "sha256:163d4fe116f38a671bc9d711a123ba26830e67da144d23268b62af399f940ea9", size = 104531, upload-time = "2026-03-28T19:53:13.51Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/fb/2a91effd1d7c887e7003a0777522071a0e2e890326337ef73a7e6b731a36/rattle_lint-1.0.4-py3-none-any.whl", hash = "sha256:7c036bd762e8b58878be9e9fef9fa774ea1dedc52f02a9c46939a63cb603dc14", size = 104726, upload-time = "2026-03-28T21:15:12.989Z" },
 ]
 
 [[package]]
