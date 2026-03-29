@@ -29,6 +29,14 @@ RULE_CLASSES: tuple[type[LintRule], ...] = (
     MatchCaseSeparation,
 )
 
+DEFAULT_RULE_PACK: tuple[type[LintRule], ...] = (
+    NoSuiteLeadingTrailingBlankLines,
+    BlankLineBeforeAssignment,
+    BlankLineBeforeBranchInLargeSuite,
+    BlockHeaderCuddleRelaxed,
+    BlankLineAfterControlBlock,
+)
+
 
 def _dedent(source: str) -> str:
     return textwrap.dedent(re.sub(r"\A\n", "", source))
@@ -57,9 +65,20 @@ def _run_rule(
     rule = rule_cls()
     if options is not None:
         rule.configure(options)
-
     runner = LintRunner(path, _dedent(source).encode())
     reports = list(runner.collect_violations([rule], Config(path=path, root=Path.cwd())))
+
+    return runner, reports
+
+
+def _run_rules(
+    rule_classes: tuple[type[LintRule], ...],
+    source: str,
+) -> tuple[LintRunner, list]:
+    path = Path("fixture.py")
+    rules = [rule_cls() for rule_cls in rule_classes]
+    runner = LintRunner(path, _dedent(source).encode())
+    reports = list(runner.collect_violations(rules, Config(path=path, root=Path.cwd())))
 
     return runner, reports
 
@@ -104,7 +123,11 @@ def test_invalid_fixtures_produce_expected_reports(
         assert all(report.message == case.expected_message for report in reports)
 
     if case.expected_replacement is not None:
-        assert runner.apply_replacements(reports).code == _dedent(case.expected_replacement)
+        fixed_code = runner.apply_replacements(reports).code
+        assert fixed_code == _dedent(case.expected_replacement)
+
+        _, fixed_reports = _run_rule(rule_cls, fixed_code, case.options)
+        assert fixed_reports == []
 
 
 def test_rule_discovery_only_returns_concrete_rules() -> None:
@@ -181,6 +204,21 @@ def test_bl200_reports_branch_keyword_instead_of_full_multiline_return() -> None
     assert report.range.end.column - report.range.start.column == len("return")
 
 
+def test_bl200_allows_typed_result_binding_immediately_before_return() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeBranchInLargeSuite,
+        """
+        def f(parts: list[str]) -> dict[str, int]:
+            cleaned = [part.strip() for part in parts]
+            joined = ",".join(cleaned)
+            payload: dict[str, int] = {"count": len(cleaned), "width": len(joined)}
+            return payload
+        """,
+    )
+
+    assert reports == []
+
+
 def test_bl210_reports_first_line_of_multiline_assignment() -> None:
     _, reports = _run_rule(
         BlankLineBeforeAssignment,
@@ -198,6 +236,86 @@ def test_bl210_reports_first_line_of_multiline_assignment() -> None:
     report = reports[0]
     assert report.range.start.line == 3
     assert report.range.end.line == 3
+
+
+def test_default_rule_pack_converges_after_guard_to_assignment_fix() -> None:
+    runner, reports = _run_rules(
+        DEFAULT_RULE_PACK,
+        """
+        def f(flag: bool, label: str) -> str:
+            if not flag:
+                return label
+            cleaned = label.strip()
+            return cleaned
+        """,
+    )
+
+    assert reports
+
+    fixed_code = runner.apply_replacements(reports).code
+    assert fixed_code == _dedent(
+        """
+        def f(flag: bool, label: str) -> str:
+            if not flag:
+                return label
+            cleaned = label.strip()
+
+            return cleaned
+        """
+    )
+
+    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    assert fixed_reports == []
+
+
+def test_default_rule_pack_converges_after_nested_loop_tail_return() -> None:
+    runner, reports = _run_rules(
+        DEFAULT_RULE_PACK,
+        """
+        def f(items: list[int]) -> tuple[int, ...]:
+            result: list[int] = []
+            if items:
+                for item in items:
+                    if item % 2 == 0:
+                        result.append(item)
+                return tuple(result)
+
+            return ()
+        """,
+    )
+
+    assert reports
+
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    assert fixed_reports == []
+
+
+def test_default_rule_pack_converges_after_nested_guard_chain_assignment_followup() -> None:
+    runner, reports = _run_rules(
+        DEFAULT_RULE_PACK,
+        """
+        def f(values: list[str]) -> dict[str, str]:
+            result: dict[str, str] = {}
+            for value in values:
+                if value == "":
+                    continue
+                if value.startswith("#"):
+                    cleaned = value.removeprefix("#")
+                    if not cleaned:
+                        continue
+                    value = cleaned
+                result[value] = value
+
+            return result
+        """,
+    )
+
+    assert reports
+
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    assert fixed_reports == []
 
 
 def test_bl300_reports_block_header_line_only() -> None:
@@ -228,6 +346,23 @@ def test_bl300_allows_same_result_slot_guarded_overwrite() -> None:
             if override_name is not None:
                 display_name = override_name
             return display_name
+        """,
+    )
+
+    assert reports == []
+
+
+def test_bl300_allows_compact_guard_ladder_before_separated_main_path_return() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(primary: str | None, fallback: str | None) -> str:
+            if primary is not None:
+                return primary
+            if fallback is not None:
+                return fallback
+
+            return "guest"
         """,
     )
 
@@ -294,6 +429,21 @@ def test_bl300_allows_immediate_attribute_assignment_and_guard() -> None:
     assert reports == []
 
 
+def test_bl300_allows_immediate_same_receiver_rhs_and_guard() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(task_state: object) -> None:
+            total = 0.0
+            total += task_state.total
+            if task_state.completed is not None:
+                consume(task_state.completed, total)
+        """,
+    )
+
+    assert reports == []
+
+
 def test_bl350_reports_first_line_of_following_multiline_statement() -> None:
     _, reports = _run_rule(
         BlankLineAfterControlBlock,
@@ -311,6 +461,22 @@ def test_bl350_reports_first_line_of_following_multiline_statement() -> None:
     report = reports[0]
     assert report.range.start.line == 4
     assert report.range.end.line == 4
+
+
+def test_bl350_allows_related_expression_fallthrough() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f(width: int | None, columns: list[str]) -> list[str]:
+            if width is not None:
+                template = f"{width:02d}"
+                columns.append(template)
+            columns.append(template if width is not None else "default")
+            return columns
+        """,
+    )
+
+    assert reports == []
 
 
 def test_bl400_reports_case_keyword_only() -> None:
