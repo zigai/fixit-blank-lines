@@ -113,7 +113,6 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
         for current_case, next_case in pairwise(node.cases):
             if self._node_non_empty_line_count(current_case.body) <= max_case_non_empty_lines:
                 continue
-
             current_position = self.get_metadata(PositionProvider, current_case)
             next_position = self.get_metadata(PositionProvider, next_case)
             if next_position.start.line > current_position.end.line + 1:

@@ -84,7 +84,6 @@ class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):
                 if is_blank_line(leading_line):
                     drop_count += 1
                     continue
-
                 break
 
             if drop_count > 0:
@@ -96,7 +95,6 @@ class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):
                     message=self.LEADING_MESSAGE,
                     replacement=replacement,
                 )
-
         keep_count = len(footer)
         while keep_count > 0 and is_blank_line(footer[keep_count - 1]):
             keep_count -= 1

@@ -70,28 +70,24 @@ class ComparableExpressionCollector(cst.CSTVisitor):
 def collect_names(node: cst.CSTNode) -> set[str]:
     collector = NameCollector()
     node.visit(collector)
-
     return collector.names
 
 
 def collect_names_including_nested(node: cst.CSTNode) -> set[str]:
     collector = NestedNameCollector()
     node.visit(collector)
-
     return collector.names
 
 
 def collect_attribute_receivers(node: cst.CSTNode) -> list[cst.BaseExpression]:
     collector = AttributeReceiverCollector()
     node.visit(collector)
-
     return collector.receivers
 
 
 def collect_comparable_expressions(node: cst.CSTNode) -> list[cst.BaseExpression]:
     collector = ComparableExpressionCollector()
     node.visit(collector)
-
     return collector.expressions
 
 
@@ -103,16 +99,27 @@ def has_separator(statement: cst.BaseStatement) -> bool:
     return len(statement.leading_lines) > 0
 
 
+def has_blank_line_separator(statement: cst.BaseStatement) -> bool:
+    return bool(statement.leading_lines) and all(
+        is_blank_line(line) for line in statement.leading_lines
+    )
+
+
 def prepend_blank_line(statement: cst.BaseStatement) -> cst.BaseStatement:
     return statement.with_changes(
         leading_lines=(cst.EmptyLine(indent=False), *statement.leading_lines)
     )
 
 
+def remove_blank_leading_lines(statement: cst.BaseStatement) -> cst.BaseStatement:
+    return statement.with_changes(
+        leading_lines=tuple(line for line in statement.leading_lines if not is_blank_line(line))
+    )
+
+
 def is_branch_statement(statement: cst.BaseStatement) -> bool:
     if not isinstance(statement, cst.SimpleStatementLine):
         return False
-
     if len(statement.body) != 1:
         return False
 
@@ -267,7 +274,6 @@ def assignment_reference_names(statement: cst.BaseStatement) -> set[str]:
     names: set[str] = set()
     if isinstance(assignment, cst.Assign):
         names.update(collect_names(assignment.value))
-
         for assign_target in assignment.targets:
             names.update(target_reference_names(assign_target.target))
     elif isinstance(assignment, cst.AnnAssign):
@@ -317,16 +323,12 @@ def expression_statement_value(statement: cst.BaseStatement) -> cst.BaseExpressi
 def header_expression_nodes(statement: cst.BaseStatement) -> list[cst.CSTNode]:
     if isinstance(statement, cst.If):
         return [statement.test]
-
     if isinstance(statement, cst.While):
         return [statement.test]
-
     if isinstance(statement, cst.For):
         return [statement.iter]
-
     if isinstance(statement, cst.With):
         return [item.item for item in statement.items]
-
     if isinstance(statement, cst.Match):
         return [statement.subject]
 
@@ -381,10 +383,8 @@ def is_terminal_exception_cleanup_run(
 ) -> bool:
     if suite_parent is None or not is_exception_cleanup_suite_parent(suite_parent):
         return False
-
     if start_index < 0 or start_index >= len(body):
         return False
-
     if not is_branch_statement(body[-1]):
         return False
 
@@ -394,7 +394,6 @@ def is_terminal_exception_cleanup_run(
 def is_single_line_control_block(statement: cst.BaseStatement) -> bool:
     if isinstance(statement, cst.Match):
         return False
-
     if isinstance(statement, (cst.For, cst.If, cst.Try, cst.While, cst.With)):
         return isinstance(statement.body, cst.SimpleStatementSuite)
 
@@ -449,13 +448,10 @@ def _branch_reference_names(statement: cst.Raise | cst.Return) -> set[str]:
 def small_statement_reference_names(statement: cst.BaseSmallStatement) -> set[str]:
     if isinstance(statement, cst.Assert):
         return _assert_reference_names(statement)
-
     if isinstance(statement, (cst.Assign, cst.AnnAssign, cst.AugAssign)):
         return assignment_reference_names(cst.SimpleStatementLine(body=[statement]))
-
     if isinstance(statement, cst.Expr):
         return collect_names(statement.value)
-
     if isinstance(statement, (cst.Raise, cst.Return)):
         return _branch_reference_names(statement)
 
@@ -465,13 +461,10 @@ def small_statement_reference_names(statement: cst.BaseSmallStatement) -> set[st
 def small_statement_consumed_names(statement: cst.BaseSmallStatement) -> set[str]:
     if isinstance(statement, cst.Assert):
         return _assert_reference_names(statement)
-
     if isinstance(statement, (cst.Assign, cst.AnnAssign, cst.AugAssign)):
         return assignment_consumed_names(cst.SimpleStatementLine(body=[statement]))
-
     if isinstance(statement, cst.Expr):
         return collect_names(statement.value)
-
     if isinstance(statement, (cst.Raise, cst.Return)):
         return _branch_reference_names(statement)
 
@@ -588,7 +581,6 @@ def suite_statements(suite: cst.BaseSuite) -> list[cst.BaseStatement]:
 def primary_body_statements(statement: cst.BaseStatement) -> list[cst.BaseStatement]:
     if isinstance(statement, (cst.For, cst.If, cst.Try, cst.While, cst.With)):
         return suite_statements(statement.body)
-
     if isinstance(statement, cst.Match) and statement.cases:
         return suite_statements(statement.cases[0].body)
 
@@ -717,17 +709,21 @@ def starts_compact_guard_ladder(
         return False
 
     index = start_index
+    guard_count = 0
     while index < len(body):
         statement = body[index]
         if not is_compact_guard_if(statement):
             break
 
+        guard_count += 1
         next_index = index + 1
-        if next_index >= len(body) or has_separator(body[next_index]):
-            return False
+        if next_index >= len(body):
+            return guard_count >= 2
+        if has_separator(body[next_index]):
+            return guard_count >= 2
 
         if is_branch_statement(body[next_index]):
-            return True
+            return guard_count >= 2
 
         index = next_index
 
@@ -888,6 +884,7 @@ def _suite_is_single_pass(suite: cst.BaseSuite) -> bool:
         statements = suite.body
         if len(statements) != 1:
             return False
+
         statement = statements[0]
 
         return (
@@ -918,7 +915,6 @@ def count_non_empty_lines(source_lines: list[str], start_line: int, end_line: in
 
     safe_start = max(start_line, 1)
     safe_end = min(end_line, len(source_lines))
-
     if safe_end < safe_start:
         return 0
 
@@ -954,6 +950,7 @@ __all__ = [
     "first_statement_in_block",
     "first_statement_in_suite",
     "flat_body_assigned_names",
+    "has_blank_line_separator",
     "has_nontrivial_related_use",
     "has_separator",
     "header_expression_nodes",
@@ -977,6 +974,7 @@ __all__ = [
     "prepend_blank_line",
     "previous_block_assigns_current_target",
     "primary_body_statements",
+    "remove_blank_leading_lines",
     "starts_compact_guard_ladder",
     "statement_consumed_names",
     "statement_reference_names",
