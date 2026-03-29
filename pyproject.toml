@@ -25,15 +25,15 @@ classifiers = [
 keywords = ["rattle", "lint", "blank-lines", "autofix"]
 
 [project.optional-dependencies]
-test = ["pytest", "coverage", "rattle-lint"]
+test = ["pytest>=9.0.2", "coverage>=7.13.5", "rattle-lint>=1.0.4"]
 dev = [
-    "pytest",
-    "coverage",
+    "pytest>=9.0.2",
+    "coverage>=7.13.5",
     "ruff==0.15.8",
-    "pre-commit",
-    "mypy",
-    "codespell",
-    "rattle-lint",
+    "pre-commit>=4.5.1",
+    "mypy>=1.19.1",
+    "codespell>=2.4.2",
+    "rattle-lint>=1.0.4",
 ]
 
 [project.urls]
