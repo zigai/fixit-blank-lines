@@ -1,6 +1,6 @@
 [project]
 name = "rattle-blank-lines"
-version = "0.2.3"
+version = "0.2.4"
 description = "Reusable Rattle rules for blank-line and statement cuddling policies."
 authors = [{ name = "zigai", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
