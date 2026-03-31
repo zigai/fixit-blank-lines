@@ -1,12 +1,12 @@
 [project]
 name = "rattle-blank-lines"
-version = "0.2.4"
+version = "0.2.5"
 description = "Reusable Rattle rules for blank-line and statement cuddling policies."
 authors = [{ name = "zigai", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["rattle-lint>=1.0.4"]
+dependencies = ["rattle-lint>=1.0.5"]
 
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -27,7 +27,7 @@ classifiers = [
 keywords = ["rattle", "lint", "blank-lines", "autofix"]
 
 [project.optional-dependencies]
-test = ["pytest>=9.0.2", "coverage>=7.13.5", "rattle-lint>=1.0.4"]
+test = ["pytest>=9.0.2", "coverage>=7.13.5", "rattle-lint>=1.0.5"]
 dev = [
     "pytest>=9.0.2",
     "coverage>=7.13.5",
@@ -35,7 +35,7 @@ dev = [
     "pre-commit>=4.5.1",
     "mypy>=1.19.1",
     "codespell>=2.4.2",
-    "rattle-lint>=1.0.4",
+    "rattle-lint>=1.0.5",
 ]
 
 [project.urls]
