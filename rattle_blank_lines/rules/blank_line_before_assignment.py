@@ -10,6 +10,9 @@ from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negat
 from rattle_blank_lines.utils import (
     assigned_names,
     assignment_small_statement,
+    collect_attribute_receivers,
+    expression_statement_value,
+    has_blank_line_separator,
     has_nontrivial_related_use,
     has_separator,
     is_compact_guard_if,
@@ -18,6 +21,7 @@ from rattle_blank_lines.utils import (
     next_control_block_consumes_assignment,
     next_local_definition_uses_assignment,
     prepend_blank_line,
+    remove_blank_leading_lines,
 )
 
 
@@ -29,6 +33,10 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
     MESSAGE = (
         "BL210 Missing blank line before assignment statement "
         "that follows a non-assignment statement."
+    )
+    EXTRA_MESSAGE = (
+        "BL210 Unnecessary blank line before assignment statement "
+        "that continues a compact local flow."
     )
     SETTINGS = {
         "short_control_flow_max_statements": RuleSetting(
@@ -60,6 +68,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                 log_start()
 
                 value = compute()
+                log_value(value)
                 return value
             """
         ),
@@ -188,24 +197,23 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                 return calls
             """
         ),
-    ]
-    INVALID = [
-        Invalid(
+        Valid(
+            """
+            def f(logger: logging.Logger, handler: logging.Handler) -> None:
+                logger.addHandler(handler)
+                logger.propagate = False
+            """
+        ),
+        Valid(
             """
             def f() -> int:
                 log_start()
                 value = compute()
                 return value
-            """,
-            expected_replacement="""
-            def f() -> int:
-                log_start()
-
-                value = compute()
-                return value
-            """,
-            expected_message=MESSAGE,
+            """
         ),
+    ]
+    INVALID = [
         Invalid(
             """
             def f(values: list[int]) -> int:
@@ -287,6 +295,36 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             """,
             expected_message=MESSAGE,
         ),
+        Invalid(
+            """
+            def f(logger: logging.Logger, handler: logging.Handler) -> None:
+                logger.addHandler(handler)
+
+                logger.propagate = False
+            """,
+            expected_replacement="""
+            def f(logger: logging.Logger, handler: logging.Handler) -> None:
+                logger.addHandler(handler)
+                logger.propagate = False
+            """,
+            expected_message=EXTRA_MESSAGE,
+        ),
+        Invalid(
+            """
+            def f() -> int:
+                log_start()
+
+                value = compute()
+                return value
+            """,
+            expected_replacement="""
+            def f() -> int:
+                log_start()
+                value = compute()
+                return value
+            """,
+            expected_message=EXTRA_MESSAGE,
+        ),
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -330,6 +368,20 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             if assignment_small_statement(statement) is None:
                 continue
 
+            if self._should_remove_assignment_separator(
+                body,
+                index,
+                suite_parent=suite_parent,
+            ):
+                self.report(
+                    statement,
+                    message=self.EXTRA_MESSAGE,
+                    position=self._first_line_range(statement),
+                    replacement=remove_blank_leading_lines(statement),
+                )
+
+                continue
+
             if has_separator(statement):
                 continue
 
@@ -347,6 +399,18 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                 position=self._first_line_range(statement),
                 replacement=prepend_blank_line(statement),
             )
+
+    def _should_remove_assignment_separator(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+        *,
+        suite_parent: cst.CSTNode | None,
+    ) -> bool:
+        return has_blank_line_separator(body[index]) and (
+            self._continues_same_receiver_setup(body, index)
+            or self._is_terminal_simple_return_tail(body, index, suite_parent=suite_parent)
+        )
 
     def _should_skip_assignment(
         self,
@@ -366,6 +430,8 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             assignment_small_statement(previous_statement) is not None
             or self._follows_suite_docstring(body, index, suite_can_have_docstring)
             or is_terminal_exception_cleanup_run(body, index, suite_parent)
+            or self._continues_same_receiver_setup(body, index)
+            or self._is_terminal_simple_return_tail(body, index, suite_parent=suite_parent)
             or next_control_block_consumes_assignment(
                 body,
                 index,
@@ -382,6 +448,112 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
                 and (related_use or self._has_direct_following_branch_use(body, index))
             )
             or related_use
+        )
+
+    def _continues_same_receiver_setup(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+    ) -> bool:
+        if index <= 0:
+            return False
+
+        assignment = assignment_small_statement(body[index])
+        if assignment is None:
+            return False
+
+        if isinstance(assignment, cst.Assign):
+            current_targets = [target.target for target in assignment.targets]
+        elif isinstance(assignment, (cst.AnnAssign, cst.AugAssign)):
+            current_targets = [assignment.target]
+        else:
+            return False
+
+        current_receivers = [
+            receiver
+            for target in current_targets
+            for receiver in collect_attribute_receivers(target)
+        ]
+        if not current_receivers:
+            return False
+
+        previous_receivers = [
+            receiver
+            for expression in self._receiver_setup_expressions(body[index - 1])
+            for receiver in collect_attribute_receivers(expression)
+        ]
+        if not previous_receivers:
+            return False
+
+        return any(
+            previous_receiver.deep_equals(current_receiver)
+            for previous_receiver in previous_receivers
+            for current_receiver in current_receivers
+        )
+
+    def _receiver_setup_expressions(
+        self,
+        statement: cst.BaseStatement,
+    ) -> list[cst.BaseExpression]:
+        expressions: list[cst.BaseExpression] = []
+
+        expression = expression_statement_value(statement)
+        if expression is not None:
+            expressions.append(expression)
+
+        assignment = assignment_small_statement(statement)
+        if isinstance(assignment, cst.Assign):
+            expressions.append(assignment.value)
+            expressions.extend(target.target for target in assignment.targets)
+
+            return expressions
+
+        if isinstance(assignment, cst.AnnAssign):
+            expressions.append(assignment.target)
+            if assignment.value is not None:
+                expressions.append(assignment.value)
+
+            return expressions
+
+        if isinstance(assignment, cst.AugAssign):
+            expressions.append(assignment.target)
+            expressions.append(assignment.value)
+
+        return expressions
+
+    def _is_terminal_simple_return_tail(
+        self,
+        body: Sequence[cst.BaseStatement],
+        index: int,
+        *,
+        suite_parent: cst.CSTNode | None,
+    ) -> bool:
+        if not isinstance(suite_parent, cst.FunctionDef):
+            return False
+
+        if index != len(body) - 2:
+            return False
+
+        next_statement = body[index + 1]
+        if not (
+            isinstance(next_statement, cst.SimpleStatementLine)
+            and len(next_statement.body) == 1
+            and isinstance(next_statement.body[0], cst.Return)
+            and self._has_direct_following_branch_use(body, index)
+        ):
+            return False
+
+        previous_statement = body[index - 1]
+        if not (
+            isinstance(previous_statement, cst.SimpleStatementLine)
+            and len(previous_statement.body) == 1
+            and (index == 1 or has_separator(previous_statement))
+        ):
+            return False
+
+        return all(
+            self._node_non_empty_line_count(statement) == 1
+            for statement in (previous_statement, body[index])
         )
 
     def _related_use_lookahead(self) -> int:
