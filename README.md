@@ -192,9 +192,30 @@ def f(value: int) -> int:
 
 ### BlankLineBeforeAssignment (BL210)
 Requires a blank line before an assignment after a non-assignment statement.
-Docstring-following assignments and some compact follow-up flows stay together.
+Docstring-following assignments, same-receiver setup flows, short terminal return tails, and some compact follow-up flows stay together.
 
 Before:
+```python
+def f(candidate: object) -> object:
+    validate(candidate)
+    display_value = str(candidate)
+    if supports_live_interaction():
+        highlight(candidate)
+    return candidate
+```
+
+Usually:
+```python
+def f(candidate: object) -> object:
+    validate(candidate)
+
+    display_value = str(candidate)
+    if supports_live_interaction():
+        highlight(candidate)
+    return candidate
+```
+
+Also allowed:
 ```python
 def f() -> int:
     log_start()
@@ -202,13 +223,11 @@ def f() -> int:
     return value
 ```
 
-After:
+Also allowed:
 ```python
-def f() -> int:
-    log_start()
-
-    value = compute()
-    return value
+def configure_logger(logger: logging.Logger, handler: logging.Handler) -> None:
+    logger.addHandler(handler)
+    logger.propagate = False
 ```
 
 ### MatchCaseSeparation (BL400)
