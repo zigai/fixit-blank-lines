@@ -8,7 +8,7 @@ from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle_blank_lines.rules.base import BaseBlankLinesRule, validate_non_negative_int
 from rattle_blank_lines.utils import (
     assignment_small_statement,
-    control_block_ends_with_loop_exit,
+    control_block_ends_with_continue,
     flat_body_assigned_names,
     has_nontrivial_related_use,
     has_separator,
@@ -283,7 +283,7 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             or self._is_related_simple_fallthrough(current_statement, next_statement)
             or self._is_with_immediate_inspection(current_statement, next_statement)
             or self._is_related_assignment_fallthrough(body, index, next_statement)
-            or control_block_ends_with_loop_exit(current_statement)
+            or control_block_ends_with_continue(current_statement)
             or (
                 is_pass_only_try(current_statement)
                 and isinstance(next_statement, cst.SimpleStatementLine)
