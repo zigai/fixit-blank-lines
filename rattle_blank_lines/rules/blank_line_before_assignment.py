@@ -50,7 +50,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             validator=validate_non_negative_int,
         ),
         "allow_local_helper_capture": RuleSetting(bool, default=True),
-        "allow_post_guard_continuation": RuleSetting(bool, default=True),
+        "allow_post_guard_continuation": RuleSetting(bool, default=False),
     }
 
     VALID = [
@@ -167,15 +167,6 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
         ),
         Valid(
             """
-            def f(flag: bool, value: str) -> str:
-                if not flag:
-                    return value
-                normalized = value.strip()
-                return normalized
-            """
-        ),
-        Valid(
-            """
             def f(candidate: object, parser_input: str, style: object) -> object:
                 validate(candidate)
                 display_value = parser_input or str(candidate)
@@ -231,6 +222,24 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
                 total += 1
                 return total
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            def f(flag: bool, value: str) -> str:
+                if not flag:
+                    return value
+                normalized = value.strip()
+                return normalized
+            """,
+            expected_replacement="""
+            def f(flag: bool, value: str) -> str:
+                if not flag:
+                    return value
+
+                normalized = value.strip()
+                return normalized
             """,
             expected_message=MESSAGE,
         ),
@@ -421,11 +430,13 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
         suite_parent: cst.CSTNode | None,
     ) -> bool:
         previous_statement = body[index - 1]
+        previous_is_compact_guard = index > 0 and is_compact_guard_if(previous_statement)
         related_use = has_nontrivial_related_use(
             body,
             index,
             lookahead=self._related_use_lookahead(),
         )
+
         return (
             assignment_small_statement(previous_statement) is not None
             or self._follows_suite_docstring(body, index, suite_can_have_docstring)
@@ -443,11 +454,10 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             )
             or (
                 self._allow_post_guard_continuation()
-                and index > 0
-                and is_compact_guard_if(body[index - 1])
+                and previous_is_compact_guard
                 and (related_use or self._has_direct_following_branch_use(body, index))
             )
-            or related_use
+            or (related_use and not previous_is_compact_guard)
         )
 
     def _continues_same_receiver_setup(
