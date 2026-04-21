@@ -21,8 +21,9 @@ from rattle_blank_lines.utils import (
     is_docstring_statement,
     is_header_block_statement,
     last_assigned_name,
-    last_assigned_target_expression,
     leading_block_body_statements,
+    ordered_assigned_names,
+    ordered_assigned_target_expressions,
     prepend_blank_line,
     starts_compact_guard_ladder,
     statement_reference_names,
@@ -198,6 +199,11 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         block_index: int,
         block_statement: cst.BaseStatement,
     ) -> bool:
+        if not self.STRICT and self._has_related_expression_setup(
+            body, block_index, block_statement
+        ):
+            return True
+
         if not self.STRICT and self._has_immediate_setup_bridge(body, block_index, block_statement):
             return True
 
@@ -215,16 +221,16 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         has_assignment_run = bool(candidate_run) and all(
             assignment_small_statement(statement) is not None for statement in candidate_run
         )
-        last_name = last_assigned_name(candidate_run[-1]) if has_assignment_run else None
-        if last_name is not None and self._block_is_related_to_name(block_statement, last_name):
+        assigned_names = ordered_assigned_names(candidate_run[-1]) if has_assignment_run else []
+        if any(self._block_is_related_to_name(block_statement, name) for name in assigned_names):
             return True
 
-        last_target_expression = (
-            last_assigned_target_expression(candidate_run[-1]) if has_assignment_run else None
+        target_expressions = (
+            ordered_assigned_target_expressions(candidate_run[-1]) if has_assignment_run else []
         )
-        if last_target_expression is not None and self._block_is_related_to_target_expression(
-            block_statement,
-            last_target_expression,
+        if any(
+            self._block_is_related_to_target_expression(block_statement, target_expression)
+            for target_expression in target_expressions
         ):
             return True
 
@@ -232,6 +238,33 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             body,
             block_index,
             block_statement,
+        )
+
+    def _has_related_expression_setup(
+        self,
+        body: Sequence[cst.BaseStatement],
+        block_index: int,
+        block_statement: cst.BaseStatement,
+    ) -> bool:
+        if block_index <= 0:
+            return False
+
+        previous_statement = body[block_index - 1]
+        expression = expression_statement_value(previous_statement)
+        if expression is None:
+            return False
+
+        related_names = statement_reference_names(previous_statement)
+        if not related_names:
+            return False
+
+        call = expression if isinstance(expression, cst.Call) else None
+        if call is None or not isinstance(call.func, cst.Attribute):
+            return False
+
+        return any(
+            self._block_is_related_to_name(block_statement, name)
+            for name in collect_names(call.func.value).intersection(related_names)
         )
 
     def _assignment_run(

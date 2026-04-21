@@ -13,6 +13,7 @@ from rattle_blank_lines.utils import (
     has_separator,
     is_branch_statement,
     is_compact_guard_ladder_tail,
+    is_compact_loop_exit_tail,
     is_control_block_statement,
     is_terminal_exception_cleanup_run,
     prepend_blank_line,
@@ -309,6 +310,7 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             or is_control_block_statement(body[index - 1])
             or self._follows_suite_docstring(body, index, suite_can_have_docstring)
             or is_terminal_exception_cleanup_run(body, index - 1, suite_parent)
+            or is_compact_loop_exit_tail(body, index)
             or (self._allow_related_return_tails() and self._is_compact_related_tail(body, index))
             or (
                 self._allow_guard_ladder_final_branch()

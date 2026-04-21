@@ -855,7 +855,7 @@ def next_local_definition_uses_assignment(
     return bool(collect_names_including_nested(next_statement).intersection(assigned))
 
 
-def control_block_ends_with_loop_exit(statement: cst.BaseStatement) -> bool:
+def control_block_ends_with_continue(statement: cst.BaseStatement) -> bool:
     if not isinstance(statement, (cst.If, cst.Match, cst.Try)):
         return False
 
@@ -876,7 +876,34 @@ def control_block_ends_with_loop_exit(statement: cst.BaseStatement) -> bool:
     if not isinstance(branch, cst.SimpleStatementLine) or len(branch.body) != 1:
         return False
 
-    return isinstance(branch.body[0], (cst.Break, cst.Continue))
+    return isinstance(branch.body[0], cst.Continue)
+
+
+def is_compact_loop_exit_tail(
+    body: Sequence[cst.BaseStatement],
+    branch_index: int,
+    *,
+    max_run_statements: int = 4,
+) -> bool:
+    if branch_index <= 0 or branch_index >= len(body):
+        return False
+
+    branch_statement = body[branch_index]
+    if not (
+        isinstance(branch_statement, cst.SimpleStatementLine)
+        and len(branch_statement.body) == 1
+        and isinstance(branch_statement.body[0], (cst.Break, cst.Continue))
+    ):
+        return False
+
+    if has_separator(branch_statement):
+        return False
+
+    _run_start, run = compact_tail_run_before(body, branch_index)
+    if not 1 <= len(run) <= max_run_statements:
+        return False
+
+    return all(isinstance(statement, cst.SimpleStatementLine) for statement in run)
 
 
 def _suite_is_single_pass(suite: cst.BaseSuite) -> bool:
@@ -943,7 +970,7 @@ __all__ = [
     "compact_tail_run_before",
     "contiguous_run_before",
     "control_block_consumed_names_in_early_body",
-    "control_block_ends_with_loop_exit",
+    "control_block_ends_with_continue",
     "count_non_empty_lines",
     "expression_statement_value",
     "extract_target_names",
@@ -958,6 +985,7 @@ __all__ = [
     "is_branch_statement",
     "is_compact_guard_if",
     "is_compact_guard_ladder_tail",
+    "is_compact_loop_exit_tail",
     "is_control_block_statement",
     "is_docstring_statement",
     "is_header_block_statement",
