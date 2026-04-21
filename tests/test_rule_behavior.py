@@ -289,6 +289,7 @@ def test_default_rule_pack_converges_after_guard_to_assignment_fix() -> None:
         def f(flag: bool, label: str) -> str:
             if not flag:
                 return label
+
             cleaned = label.strip()
 
             return cleaned
@@ -505,6 +506,53 @@ def test_bl300_allows_immediate_same_receiver_rhs_and_guard() -> None:
     assert reports == []
 
 
+def test_bl300_allows_expression_setup_before_related_match() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(registry: object, handler: object) -> object:
+            registry.attach(handler)
+            match registry.mode:
+                case "primary":
+                    return registry.dispatch("x")
+                case _:
+                    return registry.dispatch("fallback")
+        """,
+    )
+
+    assert reports == []
+
+
+def test_bl300_allows_expression_setup_before_related_with_block() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(tracker: object) -> object:
+            tracker.prepare("job")
+            with tracker.capture() as snapshot:
+                tracker.enable()
+                return tracker.finish(), snapshot
+        """,
+    )
+
+    assert reports == []
+
+
+def test_bl300_allows_tuple_unpack_before_related_guard() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(subject: object) -> None:
+            left, candidate, payload = inspect_subject(subject)
+            if not isinstance(candidate, ExpectedNode):
+                raise UnexpectedNodeError(f"Unexpected node type: {type(candidate)!r}")
+            consume(left, payload)
+        """,
+    )
+
+    assert reports == []
+
+
 def test_bl350_reports_first_line_of_following_multiline_statement() -> None:
     _, reports = _run_rule(
         BlankLineAfterControlBlock,
@@ -534,6 +582,99 @@ def test_bl350_allows_related_expression_fallthrough() -> None:
                 columns.append(template)
             columns.append(template if width is not None else "default")
             return columns
+        """,
+    )
+
+    assert reports == []
+
+
+def test_default_rule_pack_keeps_loop_cleanup_compact_but_separates_phases() -> None:
+    runner, reports = _run_rules(
+        DEFAULT_RULE_PACK,
+        """
+        def f(stream: object) -> tuple[object, ...]:
+            captured: list[object] = []
+            while stream.tokens:
+                token = stream.tokens[0]
+                if token == "<STOP>":
+                    stream.tokens.pop(0)
+                    captured.extend(stream.tokens)
+                    stream.tokens.clear()
+                    break
+                if stream.is_boundary(token):
+                    break
+                captured.append(stream.tokens.pop(0))
+            return tuple(captured)
+        """,
+    )
+
+    fixed_code = runner.apply_replacements(reports).code
+    assert fixed_code == _dedent(
+        """
+        def f(stream: object) -> tuple[object, ...]:
+            captured: list[object] = []
+            while stream.tokens:
+                token = stream.tokens[0]
+                if token == "<STOP>":
+                    stream.tokens.pop(0)
+                    captured.extend(stream.tokens)
+                    stream.tokens.clear()
+                    break
+
+                if stream.is_boundary(token):
+                    break
+
+                captured.append(stream.tokens.pop(0))
+
+            return tuple(captured)
+        """
+    )
+
+    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    assert fixed_reports == []
+
+
+def test_default_rule_pack_keeps_tuple_unpack_attached_to_guard_then_separates_main_flow() -> None:
+    runner, reports = _run_rules(
+        DEFAULT_RULE_PACK,
+        """
+        def f(subject: object) -> None:
+            left, candidate, payload = inspect_subject(subject)
+            if not isinstance(candidate, ExpectedNode):
+                raise UnexpectedNodeError(f"Unexpected node type: {type(candidate)!r}")
+            resolved_name = left if left is not None else (candidate.name or "")
+            consume(resolved_name, payload)
+        """,
+    )
+
+    fixed_code = runner.apply_replacements(reports).code
+    assert fixed_code == _dedent(
+        """
+        def f(subject: object) -> None:
+            left, candidate, payload = inspect_subject(subject)
+            if not isinstance(candidate, ExpectedNode):
+                raise UnexpectedNodeError(f"Unexpected node type: {type(candidate)!r}")
+
+            resolved_name = left if left is not None else (candidate.name or "")
+            consume(resolved_name, payload)
+        """
+    )
+
+    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    assert fixed_reports == []
+
+
+def test_bl200_allows_compact_cleanup_break_tail() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeBranchInLargeSuite,
+        """
+        def f(stream: object, captured: list[str]) -> None:
+            while stream.tokens:
+                if stream.tokens[0] == "<STOP>":
+                    stream.tokens.pop(0)
+                    captured.extend(stream.tokens)
+                    stream.tokens.clear()
+                    break
         """,
     )
 
